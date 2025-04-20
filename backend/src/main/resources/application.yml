@@ -1,0 +1,37 @@
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        model: gpt-3.5-turbo
+
+  application:
+    name: genai
+
+  r2dbc:
+    url: "r2dbc:postgresql://localhost:5432/bookstore"
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
+
+  datasource:
+    url: "jdbc:postgresql://localhost:5432/bookstore"
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
+
+  main:
+    web-application-type: reactive
+
+  sql:
+    init:
+      mode: always
+      schema-location: classpath:/schema.sql
+
+
+logging:
+    level:
+        org.springframework.ai: DEBUG
+        org.springframework.boot.autoconfigure: INFO
+
+
+server:
+  port: 8080

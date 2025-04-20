@@ -1,0 +1,16 @@
+{
+    "folders": [
+      { "path": "backend" },
+      { "path": "frontend" }
+    ],
+    "settings": {
+      "java.configuration.updateBuildConfiguration": "interactive",
+    "terminal.integrated.defaultProfile.linux": "bash",
+    "java.compile.nullAnalysis.mode": "automatic",
+    "files.exclude": {
+        "**/.*": false
+    }
+
+    }
+  }
+  
