@@ -12,7 +12,9 @@ function Chat() {
     setMessages([...messages, userMessage]);
 
     try {
-      const response = await axios.post('/api/chat', { content: input });
+      const response = await axios.post('http://localhost:8080/chat', { content: input }, {
+        headers: { 'Content-Type': 'application/json' }
+      });
       const botMessage = { role: 'bot', content: response.data.content };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {

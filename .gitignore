@@ -1,6 +1,8 @@
 # Created by https://www.toptal.com/developers/gitignore/api/java,visualstudiocode,maven,node,react
 # Edit at https://www.toptal.com/developers/gitignore?templates=java,visualstudiocode,maven,node,react
 
+.vscode/
+
 ### Java ###
 *.class
 *.log
