@@ -1,0 +1,119 @@
+>>> App.js
+import React from 'react';
+import Chat from './Chat';
+
+function App() {
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
+      <h1>GenAI Chat</h1>
+      <Chat />
+    </div>
+  );
+}
+
+export default App;
+
+-----------
+>>> App.test.js
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+-----------
+>>> Chat.js
+import React, { useState } from 'react';
+import axios from 'axios';
+
+function Chat() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+
+    const userMessage = { role: 'user', content: input };
+    setMessages([...messages, userMessage]);
+
+    try {
+      const response = await axios.post('http://localhost:8080/chat', { content: input }, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const botMessage = { role: 'bot', content: response.data.content };
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error calling API:', error);
+      setMessages(prev => [...prev, { role: 'error', content: 'Error talking to backend.' }]);
+    }
+
+    setInput('');
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem' }}>
+        {messages.map((msg, index) => (
+          <div key={index} style={{ marginBottom: '.5rem' }}>
+            <strong>{msg.role}:</strong> {msg.content}
+          </div>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        placeholder="Say something..."
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && sendMessage()}
+        style={{ width: '80%', padding: '0.5rem' }}
+      />
+      <button onClick={sendMessage} style={{ marginLeft: '0.5rem' }}>
+        Send
+      </button>
+    </div>
+  );
+}
+
+export default Chat;
+
+-----------
+>>> index.js
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+-----------
+>>> reportWebVitals.js
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+-----------
+>>> setupTests.js
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+-----------

@@ -8,15 +8,15 @@ spring:
   application:
     name: genai
 
-  r2dbc:
-    url: "r2dbc:postgresql://localhost:5432/bookstore"
-    username: ${POSTGRES_USERNAME}
-    password: ${POSTGRES_PASSWORD}
-
   datasource:
     url: "jdbc:postgresql://localhost:5432/bookstore"
     username: ${POSTGRES_USERNAME}
     password: ${POSTGRES_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
 
   main:
     web-application-type: reactive
@@ -30,8 +30,7 @@ spring:
 logging:
     level:
         org.springframework.ai: DEBUG
-        org.springframework.boot.autoconfigure: INFO
-
 
 server:
   port: 8080
+
