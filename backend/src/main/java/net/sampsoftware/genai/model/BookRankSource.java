@@ -4,8 +4,13 @@ import jakarta.persistence.*;
 import java.time.LocalDate;
 import java.util.List;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
 @Entity
 @Table(name = "book_rank_source")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class BookRankSource {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -15,6 +20,7 @@ public class BookRankSource {
     private LocalDate publishDate;
 
     @OneToMany(mappedBy = "source", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
     private List<RankedBook> rankedBooks;
 
     // Getters and setters
