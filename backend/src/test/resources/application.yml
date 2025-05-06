@@ -1,0 +1,15 @@
+spring:
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+
+
+  ai:
+    openai:
+      api-key: testkey
+      chat:
+        options:
+          model: gpt-3.5-turbo

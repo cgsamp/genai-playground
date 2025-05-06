@@ -1,23 +1,33 @@
 package net.sampsoftware.genai.controller;
 
-import net.sampsoftware.genai.dto.ChatRequest;
-import net.sampsoftware.genai.dto.ChatResponse;
-import net.sampsoftware.genai.service.ChatService;
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.ModelDto;
+import net.sampsoftware.genai.mapper.ModelMapper;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.repository.ModelRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/model")
-public class ModelController {
+@RequestMapping("/api/models")
+@RequiredArgsConstructor
+public class ModelController extends CrudDtoController<Model, ModelDto, Long> {
 
-    private final ChatService chatService;
+    private final ModelRepository modelRepository;
+    private final ModelMapper modelMapper;
 
-    public ModelController(ChatService chatService) {
-        this.chatService = chatService;
+    @Override
+    protected JpaRepository<Model, Long> getRepository() {
+        return modelRepository;
     }
 
-    @PostMapping
-    public ChatResponse chat(@RequestBody ChatRequest request) {
-        String reply = chatService.chat(request.getContent());
-        return new ChatResponse(reply);
+    @Override
+    protected ModelDto toDto(Model entity) {
+        return modelMapper.toDto(entity);
+    }
+
+    @Override
+    protected Model toEntity(ModelDto dto) {
+        return modelMapper.toEntity(dto);
     }
 }

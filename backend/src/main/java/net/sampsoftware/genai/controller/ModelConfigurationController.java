@@ -1,22 +1,33 @@
 package net.sampsoftware.genai.controller;
 
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.ModelConfigurationDto;
+import net.sampsoftware.genai.mapper.ModelConfigurationMapper;
 import net.sampsoftware.genai.model.ModelConfiguration;
 import net.sampsoftware.genai.repository.ModelConfigurationRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-
 @RestController
-@RequestMapping("/api/configs")
-public class ModelConfigurationController {
-    private final ModelConfigurationRepository repo;
-    public ModelConfigurationController(ModelConfigurationRepository repo) { this.repo = repo; }
+@RequestMapping("/api/model-configurations")
+@RequiredArgsConstructor
+public class ModelConfigurationController extends CrudDtoController<ModelConfiguration, ModelConfigurationDto, Long> {
 
-    @GetMapping public List<ModelConfiguration> all() { return repo.findAll(); }
-    @GetMapping("/{id}") public ModelConfiguration one(@PathVariable Long id) { return repo.findById(id).orElseThrow(); }
-    @PostMapping public ModelConfiguration create(@RequestBody ModelConfiguration c) { return repo.save(c); }
-    @PutMapping("/{id}") public ModelConfiguration update(@PathVariable Long id, @RequestBody ModelConfiguration c) {
-        c.setId(id); return repo.save(c);
+    private final ModelConfigurationRepository configRepository;
+    private final ModelConfigurationMapper configMapper;
+
+    @Override
+    protected JpaRepository<ModelConfiguration, Long> getRepository() {
+        return configRepository;
     }
-    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { repo.deleteById(id); }
+
+    @Override
+    protected ModelConfigurationDto toDto(ModelConfiguration entity) {
+        return configMapper.toDto(entity);
+    }
+
+    @Override
+    protected ModelConfiguration toEntity(ModelConfigurationDto dto) {
+        return configMapper.toEntity(dto);
+    }
 }
