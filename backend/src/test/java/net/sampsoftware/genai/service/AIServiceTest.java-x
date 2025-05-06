@@ -1,0 +1,130 @@
+package net.sampsoftware.genai;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.sampsoftware.genai.model.ModelConfiguration;
+
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.ChatOptions;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.*;
+
+@ExtendWith(MockitoExtension.class)
+public class AIServiceTest {
+
+    @Mock
+    private ChatClient.Builder chatClientBuilder;
+    
+    @Mock
+    private ChatClient chatClient;
+    
+    @Mock
+    private ChatClient.ChatClientRequestSpec requestSpec;
+    
+    @Mock
+    private ChatClient.ChatResponseGetter responseGetter;
+    
+    private AIService aiService;
+    private ObjectMapper objectMapper;
+    
+    @BeforeEach
+    void setUp() {
+        aiService = new AIService(chatClientBuilder);
+        objectMapper = new ObjectMapper();
+        
+        // Setup the mock chain for ChatClient
+        when(chatClientBuilder.build()).thenReturn(chatClient);
+        when(chatClient.prompt()).thenReturn(requestSpec);
+        when(requestSpec.user(anyString())).thenReturn(requestSpec);
+        when(requestSpec.system(anyString())).thenReturn(requestSpec);
+        when(requestSpec.call()).thenReturn(responseGetter);
+        when(responseGetter.content()).thenReturn("Test response");
+    }
+    
+    @Test
+    void testGenerateResponseWithSimplePrompt() {
+        // Given
+        String promptText = "Tell me a joke";
+        ModelConfiguration modelConfig = createModelConfig();
+        
+        // When
+        String result = aiService.generateResponse(promptText, modelConfig);
+        
+        // Then
+        assertEquals("Test response", result);
+        verify(chatClientBuilder).defaultOptions(any(ChatOptions.class));
+        verify(chatClientBuilder).build();
+        verify(chatClient).prompt();
+        verify(requestSpec).user(promptText);
+        verify(requestSpec).call();
+        verify(responseGetter).content();
+    }
+    
+    @Test
+    void testGenerateResponseWithTemplatedPrompt() {
+        // Given
+        String systemPrompt = "You are a helpful assistant";
+        String userPromptTemplate = "Summarize {title} by {author}";
+        Map<String, Object> variables = new HashMap<>();
+        variables.put("title", "The Great Gatsby");
+        variables.put("author", "F. Scott Fitzgerald");
+        ModelConfiguration modelConfig = createModelConfig();
+        
+        // When
+        String result = aiService.generateResponse(systemPrompt, userPromptTemplate, variables, modelConfig);
+        
+        // Then
+        assertEquals("Test response", result);
+        verify(chatClientBuilder).defaultOptions(any(ChatOptions.class));
+        verify(chatClientBuilder).build();
+        verify(chatClient).prompt();
+        verify(requestSpec).system(systemPrompt);
+        verify(requestSpec).user(userPromptTemplate);
+        verify(requestSpec).call();
+        verify(responseGetter).content();
+    }
+    
+    @Test
+    void testGenerateResponseWithNullModelConfig() {
+        // Given
+        String promptText = "Tell me a joke";
+        
+        // When
+        String result = aiService.generateResponse(promptText, null);
+        
+        // Then
+        assertEquals("Test response", result);
+        verify(chatClientBuilder, never()).defaultOptions(any(ChatOptions.class));
+        verify(chatClientBuilder).build();
+        verify(chatClient).prompt();
+        verify(requestSpec).user(promptText);
+        verify(requestSpec).call();
+        verify(responseGetter).content();
+    }
+    
+    private ModelConfiguration createModelConfig() {
+        ModelConfiguration modelConfig = new ModelConfiguration();
+        
+        // Create model config JSON
+        ObjectNode configNode = objectMapper.createObjectNode();
+        configNode.put("temperature", 0.7);
+        configNode.put("top_p", 0.9);
+        configNode.put("max_tokens", 150);
+        
+        modelConfig.setModelConfig(configNode);
+        
+        return modelConfig;
+    }
+}

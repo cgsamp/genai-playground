@@ -1,11 +1,9 @@
-package net.sampsoftware.genai;
+package net.sampsoftware.genai.repository;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import net.sampsoftware.genai.model.Model;
 import net.sampsoftware.genai.model.ModelConfiguration;
-import net.sampsoftware.genai.repository.ModelConfigurationRepository;
-import net.sampsoftware.genai.repository.ModelRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -16,8 +14,7 @@ import java.time.Instant;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
-@ActiveProfiles("test")
-public class ModelConfigurationRepositoryTest extends AbstractPostgresTest {
+public class ModelConfigurationRepositoryTest {
 
     @Autowired
     private ModelConfigurationRepository configRepo;

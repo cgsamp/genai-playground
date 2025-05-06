@@ -57,7 +57,7 @@ function ModelInvoker() {
           <option value="">-- Select --</option>
           {configs.map(cfg => (
             <option key={cfg.id} value={cfg.id}>
-              {cfg.model?.modelName || 'Unknown'} - {cfg.comment || ''}
+              {cfg.modelName || 'Unknown'} - {cfg.comment || ''}
             </option>
           ))}
         </select>

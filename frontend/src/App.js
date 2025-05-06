@@ -4,6 +4,7 @@ import BookList from './BookList';
 import ModelConfigCreator from './ModelConfigCreator';
 import ModelConfigurationList from './ModelConfigurationList';
 import ModelInvoker from './ModelInvoker';
+import ModelManagement from './ModelManagement';
 
 function App() {
   const [showChat, setShowChat] = useState(true);
@@ -11,7 +12,7 @@ function App() {
   const [showConfig, setShowConfig] = useState(false);
   const [showConfigList, setShowConfigList] = useState(false);
   const [showInvoker, setShowInvoker] = useState(false);
-
+  const [showModelManagement, setShowModelManagement] = useState(false);
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
@@ -24,6 +25,17 @@ function App() {
         {showChat && (
           <div style={{ marginTop: '1rem' }}>
             <Chat />
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '2rem' }}>
+        <button onClick={() => setShowModelManagement(prev => !prev)}>
+          {showModelManagement ? 'Hide' : 'Show'} Models
+        </button>
+        {showModelManagement && (
+          <div style={{ marginTop: '1rem' }}>
+            <ModelManagement />
           </div>
         )}
       </div>
@@ -57,7 +69,7 @@ function App() {
         {showInvoker && (
           <div style={{ marginTop: '1rem' }}>
             <ModelInvoker />
-        </div>
+          </div>
         )}
       </div>
 

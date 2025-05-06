@@ -7,6 +7,10 @@ import net.sampsoftware.genai.model.ModelConfiguration;
 import net.sampsoftware.genai.repository.ModelConfigurationRepository;
 
 import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.web.bind.annotation.*;
 
@@ -36,11 +40,41 @@ public class ModelConfigurationController extends CrudDtoController<ModelConfigu
     @Override
     @GetMapping("/{id}")
     public ResponseEntity<ModelConfigurationDto> get(@PathVariable Long id) {
-        return configRepository.findByIdWithModel(id)
+        var config = configRepository.findByIdWithModel(id);
+        if (config.isPresent()) {
+            var modelEntity = config.get().getModel();
+            System.out.println("DEBUG - Model: " + (modelEntity != null ? 
+                modelEntity.getModelName() + ", Provider: " + modelEntity.getModelProvider() : "null"));
+        }
+        return config
             .map(configMapper::toDto)
             .map(ResponseEntity::ok)
             .orElse(ResponseEntity.notFound().build());
     }
-    
 
+    @Override
+    @GetMapping
+    public List<ModelConfigurationDto> list() {
+        var entities = ((ModelConfigurationRepository)getRepository()).findAllWithModels();
+        
+        // Debug log
+        for (var entity : entities) {
+            System.out.println("Entity ID: " + entity.getId() + 
+                            ", Model: " + (entity.getModel() != null ? 
+                                            entity.getModel().getModelName() : "null"));
+        }
+        
+        var dtos = entities.stream()
+                    .map(this::toDto)
+                    .collect(Collectors.toList());
+        
+        // Debug log for DTOs
+        for (var dto : dtos) {
+            System.out.println("DTO ID: " + dto.getId() + 
+                            ", Model Name: " + dto.getModelName() + 
+                            ", Model Provider: " + dto.getModelProvider());
+        }
+        
+        return dtos;
+    }
 }

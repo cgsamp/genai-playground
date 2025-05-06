@@ -31,7 +31,7 @@ function ModelConfigurationList() {
       <tbody>
         {configs.map(cfg => (
           <tr key={cfg.id}>
-            <td>{cfg.model?.modelName || 'Unknown'}</td>
+            <td>{cfg.modelName || 'Unknown'}</td>
             <td>{cfg.modelConfig?.temperature}</td>
             <td>{cfg.modelConfig?.top_p}</td>
             <td>{cfg.modelConfig?.max_tokens}</td>

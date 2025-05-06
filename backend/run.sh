@@ -1,5 +1,5 @@
 #!/bin/bash
-set -euo pipefail
+set -eo pipefail
 IFS=$'\n\t'
 
 set -a
@@ -8,4 +8,5 @@ set +a
 
 set -x
 
-./mvnw clean compile $1
+./mvnw clean package -DskipTests
+./mvnw $1 $2 $3 $4
