@@ -1,3 +1,5 @@
+INSERT INTO book_rank_source (org_name, publish_date) VALUES ('New York Times','2024-07-08') RETURNING id;
+
 INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,1,'My Brilliant Friend','Elena Ferrante',2012);
 INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,2,'The Warmth of Other Suns','Isabel Wilkerson',2010);
 INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,3,'Wolf Hall','Hilary Mantel',2009);

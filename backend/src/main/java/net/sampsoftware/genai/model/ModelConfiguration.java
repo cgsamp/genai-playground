@@ -1,11 +1,22 @@
 package net.sampsoftware.genai.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
 
 @Entity
 @Table(name = "model_configuration")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class ModelConfiguration {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -14,23 +25,12 @@ public class ModelConfiguration {
     @JoinColumn(name = "model_id")
     private Model model;
 
+    @JdbcTypeCode(SqlTypes.JSON)
     @Column(columnDefinition = "jsonb")
-    private String modelConfig;
+    private JsonNode modelConfig;
 
-    @Column(columnDefinition = "TEXT")
     private String comment;
 
-    private LocalDateTime createdAt;
-
-    // Getters and setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-    public Model getModel() { return model; }
-    public void setModel(Model model) { this.model = model; }
-    public String getModelConfig() { return modelConfig; }
-    public void setModelConfig(String modelConfig) { this.modelConfig = modelConfig; }
-    public String getComment() { return comment; }
-    public void setComment(String comment) { this.comment = comment; }
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    @Builder.Default
+    private Instant createdAt = Instant.now();
 }

@@ -15,7 +15,7 @@ function Chat() {
       const response = await axios.post('http://localhost:8080/chat', { content: input }, {
         headers: { 'Content-Type': 'application/json' }
       });
-      const botMessage = { role: 'bot', content: response.data.content };
+      const botMessage = { role: 'bot', content: response.data.reply };
       setMessages(prev => [...prev, botMessage]);
     } catch (error) {
       console.error('Error calling API:', error);

@@ -1,15 +1,16 @@
---DROP TABLE IF EXISTS messages;
---DROP TABLE IF EXISTS entity_summary;
---DROP TABLE IF EXISTS ranked_books;
---DROP TABLE IF EXISTS book_rank_source;
---DROP TABLE IF EXISTS model_configuration;
---DROP TABLE IF EXISTS model;
-
+/*
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS entity_summary;
+DROP TABLE IF EXISTS ranked_books;
+DROP TABLE IF EXISTS book_rank_source;
+DROP TABLE IF EXISTS model_configuration;
+DROP TABLE IF EXISTS model;
+*/
 
 CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY,
-    content TEXT NOT NULL,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    content TEXT,
+    created_at TIMESTAMPTZ
 );
 
 CREATE TABLE IF NOT EXISTS book_rank_source (
@@ -40,16 +41,16 @@ CREATE TABLE IF NOT EXISTS model_configuration (
     model_id BIGINT REFERENCES model(id),
     model_config JSONB,
     comment TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ
 );
 
 
 CREATE TABLE IF NOT EXISTS entity_summary (
     id BIGSERIAL PRIMARY KEY,
-    model_configuration_id INTEGER REFERENCES model_configuration(id),
+    model_configuration_id BIGINT REFERENCES model_configuration(id),
     entity varchar(200),
 	entity_id BIGINT,
     summary TEXT,
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMPTZ
 );
 

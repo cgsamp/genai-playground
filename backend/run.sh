@@ -8,4 +8,4 @@ set +a
 
 set -x
 
-./mvnw clean compile spring-boot:run
+./mvnw clean compile $1

@@ -1,19 +1,19 @@
 package net.sampsoftware.genai.dto;
 
 public class ChatResponse {
-    private String content;
+    private String reply;
 
     public ChatResponse() {}
 
-    public ChatResponse(String content) {
-        this.content = content;
+    public ChatResponse(String reply) {
+        this.reply = reply;
     }
 
-    public String getContent() {
-        return content;
+    public String getReply() {
+        return reply;
     }
 
-    public void setContent(String content) {
-        this.content = content;
+    public void setReply(String reply) {
+        this.reply = reply;
     }
 }

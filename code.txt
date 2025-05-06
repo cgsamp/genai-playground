@@ -1,0 +1,634 @@
+>>> frontend/src/App.js
+import React, { useState } from 'react';
+import Chat from './Chat';
+import BookList from './BookList';
+
+function App() {
+  const [showChat, setShowChat] = useState(true);
+  const [showBooks, setShowBooks] = useState(true);
+
+  return (
+    <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
+      <h1>GenAI Dashboard</h1>
+
+      <div style={{ marginBottom: '2rem' }}>
+        <button onClick={() => setShowChat(prev => !prev)}>
+          {showChat ? 'Hide' : 'Show'} Chat
+        </button>
+        {showChat && (
+          <div style={{ marginTop: '1rem' }}>
+            <Chat />
+          </div>
+        )}
+      </div>
+
+      <div>
+        <button onClick={() => setShowBooks(prev => !prev)}>
+          {showBooks ? 'Hide' : 'Show'} Book List
+        </button>
+        {showBooks && (
+          <div style={{ marginTop: '1rem' }}>
+            <BookList />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export default App;
+
+-----------
+>>> frontend/src/App.test.js
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+-----------
+>>> frontend/src/Chat.js
+import React, { useState } from 'react';
+import axios from 'axios';
+
+function Chat() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+
+    const userMessage = { role: 'user', content: input };
+    setMessages([...messages, userMessage]);
+
+    try {
+      const response = await axios.post('http://localhost:8080/chat', { content: input }, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const botMessage = { role: 'bot', content: response.data.content };
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error calling API:', error);
+      setMessages(prev => [...prev, { role: 'error', content: 'Error talking to backend.' }]);
+    }
+
+    setInput('');
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem' }}>
+        {messages.map((msg, index) => (
+          <div key={index} style={{ marginBottom: '.5rem' }}>
+            <strong>{msg.role}:</strong> {msg.content}
+          </div>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        placeholder="Say something..."
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && sendMessage()}
+        style={{ width: '80%', padding: '0.5rem' }}
+      />
+      <button onClick={sendMessage} style={{ marginLeft: '0.5rem' }}>
+        Send
+      </button>
+    </div>
+  );
+}
+
+export default Chat;
+
+-----------
+>>> frontend/src/index.js
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+-----------
+>>> frontend/src/reportWebVitals.js
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+-----------
+>>> frontend/src/setupTests.js
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+-----------
+>>> frontend/src/BookList.jsx
+// BookList.jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function BookList() {
+  const [books, setBooks] = useState([]);
+  const [summaries, setSummaries] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    axios.get('http://localhost:8080/api/books')
+      .then(res => {
+        const books = res.data;
+        setBooks(books);
+
+        const bookIds = books.map(book => book.id).join(',');
+        return axios.get(`http://localhost:8080/api/summaries?entity=ranked_books&entityIds=${bookIds}`);
+      })
+      .then(res => setSummaries(res.data))
+      .catch(err => {
+        console.error('Error loading books or summaries:', err);
+        setError('Failed to load books');
+      });
+  }, []);
+
+  function getSummariesForBook(bookId) {
+    return summaries.filter(s => s.entityId === bookId);
+  }
+
+  if (error) return <div>{error}</div>;
+
+  return (
+    <table 
+        style={{ 
+            width: '100%', 
+            tableLayout: 'fixed',
+            borderCollapse: 'collapse' 
+        }}>
+      <thead>
+        <tr>
+          <th style={{ width: '30px' }}>Rank</th>
+          <th style={{ width: '160px' }}>Title</th>
+          <th style={{ width: '100px' }}>Author</th>
+          <th style={{ width: '40px' }}>Year</th>
+          <th style={{ width: '100px' }}>Source</th>
+          <th>Summaries</th>
+        </tr>
+      </thead>
+      <tbody>
+        {books.map(book => (
+          <tr key={book.id}>
+            <td>{book.rank}</td>
+            <td>{book.title}</td>
+            <td>{book.authorName}</td>
+            <td>{book.publishYear}</td>
+            <td>{book.source?.orgName}</td>
+            <td>
+              <ul style={{ paddingLeft: '1rem', margin: 0 }}>
+                {getSummariesForBook(book.id).map(summary => (
+                  <li key={summary.id}>
+                    <strong>{summary.modelName}</strong> ΓÇö {new Date(summary.createdAt).toLocaleString()}<br/>
+                    {summary.summary}
+                  </li>
+                ))}
+              </ul>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export default BookList;
+
+-----------
+>>> backend/pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.4</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>net.sampsoftware</groupId>
+    <artifactId>genai</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>genai</name>
+    <description>GenAI bookstore</description>
+    <url/>
+    <licenses>
+        <license/>
+    </licenses>
+    <developers>
+        <developer/>
+    </developers>
+    <scm>
+        <connection/>
+        <developerConnection/>
+        <tag/>
+        <url/>
+    </scm>
+    <properties>
+        <java.version>21</java.version>
+        <spring-ai.version>1.0.0-M7</spring-ai.version>
+    </properties>
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-postgresml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-autoconfigure-model-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
+
+-----------
+>>> backend/run.sh
+#!/bin/bash
+set -euo pipefail
+IFS=$'\n\t'
+
+set -a
+source ../.env
+set +a
+
+set -x
+
+./mvnw clean compile spring-boot:run
+
+-----------
+>>> backend/src/main/resources/application.yml
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        model: gpt-3.5-turbo
+
+  application:
+    name: genai
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bookstore
+    username: ${POSTGRES_USERNAME}
+    password: ${POSTGRES_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: true
+
+  sql:
+    init:
+      mode: always
+      schema-location: classpath:/schema.sql
+
+
+logging:
+    level:
+        org.springframework.ai: DEBUG
+
+server:
+  port: 8080
+
+
+-----------
+>>> frontend/package.json
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/dom": "^10.4.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "axios": "^1.8.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "react-scripts": "5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:8080"
+}
+
+-----------
+>>> frontend/public/manifest.json
+{
+  "short_name": "React App",
+  "name": "Create React App Sample",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
+
+-----------
+>>> backend/src/main/resources/book_rank_source.sql
+INSERT INTO book_rank_source (org_name, publish_date) VALUES ('New York Times','2024-07-08') RETURNING id;
+
+-----------
+>>> backend/src/main/resources/schema.sql
+--DROP TABLE IF EXISTS messages;
+--DROP TABLE IF EXISTS entity_summary;
+--DROP TABLE IF EXISTS ranked_books;
+--DROP TABLE IF EXISTS book_rank_source;
+--DROP TABLE IF EXISTS model_configuration;
+--DROP TABLE IF EXISTS model;
+
+
+CREATE TABLE IF NOT EXISTS messages (
+    id BIGSERIAL PRIMARY KEY,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS book_rank_source (
+    id BIGSERIAL PRIMARY KEY,
+    org_name VARCHAR(200),
+    publish_date DATE
+);
+
+CREATE TABLE IF NOT EXISTS ranked_books (
+    id BIGSERIAL PRIMARY KEY,
+    list_id BIGINT REFERENCES book_rank_source(id),
+    rank INTEGER,
+    title varchar(200),
+    author_name varchar(200),
+    publish_year varchar(10)
+);
+
+CREATE TABLE IF NOT EXISTS model (
+    id BIGSERIAL PRIMARY KEY,
+    model_name VARCHAR(200),
+    model_provider VARCHAR(200),
+    model_api_url VARCHAR(200),
+    comment TEXT
+);
+
+CREATE TABLE IF NOT EXISTS model_configuration (
+    id BIGSERIAL PRIMARY KEY,
+    model_id BIGINT REFERENCES model(id),
+    model_config JSONB,
+    comment TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+
+CREATE TABLE IF NOT EXISTS entity_summary (
+    id BIGSERIAL PRIMARY KEY,
+    model_configuration_id INTEGER REFERENCES model_configuration(id),
+    entity varchar(200),
+	entity_id BIGINT,
+    summary TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+
+-----------
+>>> backend/src/main/resources/test_data.sql
+insert into model (model_name, model_provider, model_api_url, comment) values ('Test model', 'Model Test Inc', 'https://example.com/api','This is here to test things.') returning id;
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES (
+  1,
+  '{"temperature": 0.7, "max_tokens": 150, "top_p": 0.9}',
+  'Sample config for testing',
+  now()
+);
+insert into entity_summary (model_configuration_id, entity, entity_id, summary, created_at)
+values (
+1, 'ranked_books',3,'This book was less than wonderful.',now()
+);
+insert into entity_summary (model_configuration_id, entity, entity_id, summary, created_at)
+values (
+1, 'ranked_books',3,'I thought it was okay.',now()
+);
+
+-----------
+>>> backend/src/main/resources/top100of21st.sql
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,1,'My Brilliant Friend','Elena Ferrante',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,2,'The Warmth of Other Suns','Isabel Wilkerson',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,3,'Wolf Hall','Hilary Mantel',2009);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,4,'The Known World','Edward P. Jones',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,5,'The Corrections','Jonathan Franzen',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,6,'2666','Roberto Bola├▒o',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,7,'The Underground Railroad','Colson Whitehead',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,8,'Austerlitz','W.G. Sebald',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,9,'Never Let Me Go','Kazuo Ishiguro',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,10,'Gilead','Marilynne Robinson',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,11,'The Brief Wondrous Life of Oscar Wao','Junot D├¡az',2007);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,12,'The publish_year of Magical Thinking','Joan Didion',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,13,'The Road','Cormac McCarthy',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,14,'Outline','Rachel Cusk',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,15,'Pachinko','Min Jin Lee',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,16,'The Amazing Adventures of Kavalier & Clay','Michael Chabon',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,17,'The Sellout','Paul Beatty',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,18,'Lincoln in the Bardo','George Saunders',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,19,'Say Nothing','Patrick Radden Keefe',2019);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,20,'Erasure','Percival Everett',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,21,'Evicted','Matthew Desmond',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,22,'Behind the Beautiful Forevers','Katherine Boo',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,23,'Hateship, Friendship, Courtship, Loveship, Marriage','Alice Munro',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,24,'The Overstory','Richard Powers',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,25,'Random Family','Adrian Nicole LeBlanc',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,26,'Atonement','Ian McEwan',2002);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,27,'Americanah','Chimamanda Ngozi Adichie',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,28,'Cloud Atlas','David Mitchell',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,29,'The Last Samurai','Helen DeWitt',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,30,'Sing, Unburied, Sing','Jesmyn Ward',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,31,'White Teeth','Zadie Smith',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,32,'The Line of Beauty','Alan Hollinghurst',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,33,'Salvage the Bones','Jesmyn Ward',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,34,'Citizen','Claudia Rankine',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,35,'Fun Home','Alison Bechdel',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,36,'Between the World and Me','Ta-Nehisi Coates',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,37,'The publish_years','Annie Ernaux',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,38,'The Savage Detectives','Roberto Bola├▒o',2007);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,39,'A Visit From the Goon Squad','Jennifer Egan',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,40,'H Is for Hawk','Helen Macdonald',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,41,'Small Things Like These','Claire Keegan',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,42,'A Brief History of Seven Killings','Marlon James',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,43,'Postwar','Tony Judt',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,44,'The Fifth Season','N. K. Jemisin',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,45,'The Argonauts','Maggie Nelson',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,46,'The Goldfinch','Donna Tartt',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,47,'A Mercy','Toni Morrison',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,48,'Persepolis','Marjane Satrapi',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,49,'The Vegetarian','Han Kang',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,50,'Trust','Hernan Diaz',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,51,'Life After Life','Kate Atkinson',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,52,'Train Dreams','Denis Johnson',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,53,'Runaway','Alice Munro',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,54,'Tenth of December','George Saunders',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,55,'The Looming Tower','Lawrence Wright',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,56,'The Flamethrowers','Rachel Kushner',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,57,'Nickel and Dimed','Barbara Ehrenreich',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,58,'Stay True','Hua Hsu',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,59,'Middlesex','Jeffrey Eugenides',2002);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,60,'Heavy','Kiese Laymon',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,61,'Demon Copperhead','Barbara Kingsolver',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,62,'10:04','Ben Lerner',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,63,'Veronica','Mary Gaitskill',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,64,'The Great Believers','Rebecca Makkai',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,65,'The Plot Against America','Philip Roth',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,66,'We the Animals','Justin Torres',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,67,'Far From the Tree','Andrew Solomon',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,68,'The Friend','Sigrid Nunez',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,69,'The New Jim Crow','Michelle Alexander',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,70,'All Aunt Hagar''s Children','Edward P. Jones',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,71,'The Copenhagen Trilogy','Tove Ditlevsen',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,72,'Secondhand Time','Svetlana Alexievich',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,73,'The Passage of Power','Robert Caro',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,74,'Olive Kitteridge','Elizabeth Strout',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,75,'Exit West','Mohsin Hamid',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,76,'Tomorrow, and Tomorrow, and Tomorrow','Gabrielle Zevin',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,77,'An American Marriage','Tayari Jones',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,78,'Septology','Jon Fosse',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,79,'A Manual for Cleaning Women','Lucia Berlin',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,80,'The Story of the Lost Child','Elena Ferrante',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,81,'Pulphead','John Jeremiah Sullivan',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,82,'Hurricane Season','Fernanda Melchor',2020);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,83,'When We Cease to Understand the World','Benjam├¡n Labatut',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,84,'The Emperor of All Maladies','Siddhartha Mukherjee',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,85,'Pastoralia','George Saunders',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,86,'Frederick Douglass','David W. Blight',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,87,'Detransition, Baby','Torrey Peters',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,88,'The Collected Stories of Lydia Davis','Lydia Davis',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,89,'The Return','Hisham Matar',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,90,'The Sympathizer','Viet Thanh Nguyen',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,91,'The Human Stain','Philip Roth',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,92,'The Days of Abandonment','Elena Ferrante',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,93,'Station Eleven','Emily St. John Mandel',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,94,'On Beauty','Zadie Smith',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,95,'Bring Up the Bodies','Hilary Mantel',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,96,'Wayward Lives, Beautiful Experiments','Saidiya Hartman',2019);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,97,'Men We Reaped','Jesmyn Ward',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,98,'Bel Canto','Ann Patchett',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,99,'How to Be Both','Ali Smith',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,100,'Tree of Smoke','Denis Johnson',2007);
+
+-----------

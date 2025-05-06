@@ -1,10 +1,17 @@
 import React, { useState } from 'react';
 import Chat from './Chat';
 import BookList from './BookList';
+import ModelConfigCreator from './ModelConfigCreator';
+import ModelConfigurationList from './ModelConfigurationList';
+import ModelInvoker from './ModelInvoker';
 
 function App() {
   const [showChat, setShowChat] = useState(true);
   const [showBooks, setShowBooks] = useState(true);
+  const [showConfig, setShowConfig] = useState(false);
+  const [showConfigList, setShowConfigList] = useState(false);
+  const [showInvoker, setShowInvoker] = useState(false);
+
 
   return (
     <div style={{ padding: '2rem', fontFamily: 'sans-serif' }}>
@@ -18,6 +25,39 @@ function App() {
           <div style={{ marginTop: '1rem' }}>
             <Chat />
           </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '2rem' }}>
+        <button onClick={() => setShowConfig(prev => !prev)}>
+          {showConfig ? 'Hide' : 'Show'} Create Model Config
+        </button>
+        {showConfig && (
+          <div style={{ marginTop: '1rem' }}>
+            <ModelConfigCreator />
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '2rem' }}>
+        <button onClick={() => setShowConfigList(prev => !prev)}>
+          {showConfigList ? 'Hide' : 'Show'} Model Configurations
+        </button>
+        {showConfigList && (
+          <div style={{ marginTop: '1rem' }}>
+            <ModelConfigurationList />
+          </div>
+        )}
+      </div>
+
+      <div style={{ marginBottom: '2rem' }}>
+        <button onClick={() => setShowInvoker(prev => !prev)}>
+          {showInvoker ? 'Hide' : 'Show'} Invoke Model
+        </button>
+        {showInvoker && (
+          <div style={{ marginTop: '1rem' }}>
+            <ModelInvoker />
+        </div>
         )}
       </div>
 

@@ -30,14 +30,19 @@ function BookList() {
   if (error) return <div>{error}</div>;
 
   return (
-    <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+    <table 
+        style={{ 
+            width: '100%', 
+            tableLayout: 'fixed',
+            borderCollapse: 'collapse' 
+        }}>
       <thead>
         <tr>
-          <th>Rank</th>
-          <th>Title</th>
-          <th>Author</th>
-          <th>Year</th>
-          <th>Source</th>
+          <th style={{ width: '30px' }}>Rank</th>
+          <th style={{ width: '160px' }}>Title</th>
+          <th style={{ width: '100px' }}>Author</th>
+          <th style={{ width: '40px' }}>Year</th>
+          <th style={{ width: '100px' }}>Source</th>
           <th>Summaries</th>
         </tr>
       </thead>
