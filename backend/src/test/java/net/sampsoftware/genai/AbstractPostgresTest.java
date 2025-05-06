@@ -19,7 +19,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 )
 public abstract class AbstractPostgresTest {
 
-    @Container
     static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:15")
             .withDatabaseName("testdb")
             .withUsername("test")
@@ -27,9 +26,12 @@ public abstract class AbstractPostgresTest {
 
 
     static {
-        postgres.start();
+        if (!postgres.isRunning()) {
+            postgres.start();
+        }
     }
-
+        
+        
 
     @DynamicPropertySource
     static void overrideProps(DynamicPropertyRegistry registry) {
