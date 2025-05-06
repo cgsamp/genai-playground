@@ -43,8 +43,11 @@ public class ModelConfigurationRepositoryTest extends AbstractPostgresTest {
             .build();
 
         ModelConfiguration saved = configRepo.save(config);
-
         assertThat(saved.getId()).isNotNull();
-        assertThat(configRepo.findById(saved.getId())).contains(saved);
+        ModelConfiguration loaded = configRepo.findById(saved.getId()).orElseThrow();
+        assertThat(loaded.getModel().getId()).isEqualTo(model.getId());
+        assertThat(loaded.getComment()).isEqualTo("Initial config");
+        assertThat(loaded.getModelConfig().get("temperature").asDouble()).isEqualTo(0.7);
+
     }
 }

@@ -5,6 +5,8 @@ import net.sampsoftware.genai.dto.ModelConfigurationDto;
 import net.sampsoftware.genai.mapper.ModelConfigurationMapper;
 import net.sampsoftware.genai.model.ModelConfiguration;
 import net.sampsoftware.genai.repository.ModelConfigurationRepository;
+
+import org.springframework.http.ResponseEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,4 +32,15 @@ public class ModelConfigurationController extends CrudDtoController<ModelConfigu
     protected ModelConfiguration toEntity(ModelConfigurationDto dto) {
         return configMapper.toEntity(dto);
     }
+
+    @Override
+    @GetMapping("/{id}")
+    public ResponseEntity<ModelConfigurationDto> get(@PathVariable Long id) {
+        return configRepository.findByIdWithModel(id)
+            .map(configMapper::toDto)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
+    
+
 }
