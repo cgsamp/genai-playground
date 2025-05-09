@@ -9,6 +9,8 @@ spring:
   application:
     name: genai
 
+
+
   datasource:
     url: jdbc:postgresql://localhost:5432/bookstore
     username: ${POSTGRES_USERNAME}
@@ -18,7 +20,8 @@ spring:
   jpa:
     hibernate:
       ddl-auto: validate
-    show-sql: true
+    show-sql: false
+
 
   sql:
     init:
@@ -27,9 +30,11 @@ spring:
 
 
 logging:
-    level:
-        org.springframework.ai: DEBUG
-        org.springframework.boot.autoconfigure: INFO
+  level:
+    '[org.springframework.ai]': INFO
+    '[org.springframework.boot.autoconfigure]': INFO
+    '[org.springframework.web]': INFO
+    '[org.springframework.web.filter.CommonsRequestLoggingFilter]': DEBUG
 
 server:
   port: 8080

@@ -48,7 +48,7 @@ CREATE TABLE IF NOT EXISTS model_configuration (
 CREATE TABLE IF NOT EXISTS entity_summary (
     id BIGSERIAL PRIMARY KEY,
     model_configuration_id BIGINT REFERENCES model_configuration(id),
-    entity varchar(200),
+    type varchar(200),
 	entity_id BIGINT,
     summary TEXT,
     created_at TIMESTAMPTZ

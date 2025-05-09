@@ -10,10 +10,13 @@ import net.sampsoftware.genai.repository.EntitySummaryRepository;
 import net.sampsoftware.genai.repository.ModelConfigurationRepository;
 import net.sampsoftware.genai.repository.RankedBookRepository;
 import net.sampsoftware.genai.service.AIService;
+import net.sampsoftware.genai.service.BookService;
+import net.sampsoftware.genai.service.EntitySummaryService;
 
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.time.ZonedDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,62 +28,57 @@ import java.util.Optional;
 public class BatchSummaryController {
 
     private final AIService aiService;
+    private final BookService bookService;
     private final ModelConfigurationRepository modelConfigRepo;
-    private final RankedBookRepository bookRepo;
-    private final EntitySummaryRepository summaryRepo;
+    private final EntitySummaryService entitySummaryService;
 
     @PostMapping
-    public BatchSummaryResponse generateSummaries(@RequestBody BatchSummaryRequest request) {
-        // Get model configuration
+    public void generateSummaries(@RequestBody BatchSummaryRequest request) {
         Optional<ModelConfiguration> modelConfigOpt = modelConfigRepo.findByIdWithModel(request.modelConfigurationId());
         if (modelConfigOpt.isEmpty()) {
             throw new RuntimeException("Model configuration not found");
         }
         ModelConfiguration modelConfig = modelConfigOpt.get();
+
+        Long batchId = Long.valueOf(System.nanoTime());
         
-        // Get all books
-        List<RankedBook> books = bookRepo.findAll();
-        
-        // Track success and failure counts
-        int successCount = 0;
-        int failureCount = 0;
-        
-        // System prompt that will be used for all book summaries
-        String systemPrompt = "You are a literary expert. Provide a brief, insightful summary of the book.";
-        
-        // User prompt template
-        String userPromptTemplate = "{basePrompt} for the book '{title}' by {author} ({year}).";
-        
-        // Process each book
-        for (RankedBook book : books) {
-            try {
-                // Create variables for the prompt
-                Map<String, Object> vars = new HashMap<>();
-                vars.put("title", book.getTitle());
-                vars.put("author", book.getAuthorName());
-                vars.put("year", book.getPublishYear());
-                vars.put("basePrompt", request.prompt());
-                
-                // Use service to generate summary
-                String summary = aiService.generateResponse(systemPrompt, userPromptTemplate, vars, modelConfig);
-                
-                // Save summary to database
-                EntitySummary entitySummary = new EntitySummary();
-                entitySummary.setEntity("ranked_books");
-                entitySummary.setEntityId(book.getId());
-                entitySummary.setSummary(summary);
-                entitySummary.setModelConfiguration(modelConfig);
-                entitySummary.setCreatedAt(LocalDateTime.now());
-                
-                summaryRepo.save(entitySummary);
-                successCount++;
-                
-            } catch (Exception e) {
-                failureCount++;
-                System.err.println("Error processing book: " + book.getTitle() + " - " + e.getMessage());
-            }
+        String systemPrompt = """
+            Here is the Title, Author Name and Publishing Year of a book. Please search the web
+            and produce a summary or blurb of the book. The summary should consist of one paragraph
+            describing the genre, length and literary style of the book, as well as a summary of 
+            the plot. It should not include any "spoilers" or normative comments about the book.
+        """;
+
+        for (RankedBook book :  bookService.findAll()) {
+            String bookInfo = """
+                {
+                    "title": "%s",
+                    "authorName": "%s",
+                    "publishYear": "%s",
+                    "blurb": "%s"
+                }
+            """.formatted(
+                    book.getTitle(),
+                    book.getAuthorName(),
+                    book.getPublishYear(),
+                    ""
+            );
+
+            String summary = aiService.generateResponse(
+                systemPrompt, 
+                bookInfo, 
+                modelConfig
+            );
+
+            EntitySummary entitySummary = EntitySummary.builder()
+                .modelConfigurationId(request.modelConfigurationId())
+                .type("ranked_book")
+                .entityId(book.getId())
+                .summary(summary)
+                .batchId(batchId)
+            .build();
+
+            entitySummaryService.save(entitySummary);
         }
-        
-        return new BatchSummaryResponse(successCount, failureCount);
     }
 }

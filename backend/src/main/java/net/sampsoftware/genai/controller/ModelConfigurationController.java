@@ -41,11 +41,6 @@ public class ModelConfigurationController extends CrudDtoController<ModelConfigu
     @GetMapping("/{id}")
     public ResponseEntity<ModelConfigurationDto> get(@PathVariable Long id) {
         var config = configRepository.findByIdWithModel(id);
-        if (config.isPresent()) {
-            var modelEntity = config.get().getModel();
-            System.out.println("DEBUG - Model: " + (modelEntity != null ? 
-                modelEntity.getModelName() + ", Provider: " + modelEntity.getModelProvider() : "null"));
-        }
         return config
             .map(configMapper::toDto)
             .map(ResponseEntity::ok)
@@ -57,23 +52,9 @@ public class ModelConfigurationController extends CrudDtoController<ModelConfigu
     public List<ModelConfigurationDto> list() {
         var entities = ((ModelConfigurationRepository)getRepository()).findAllWithModels();
         
-        // Debug log
-        for (var entity : entities) {
-            System.out.println("Entity ID: " + entity.getId() + 
-                            ", Model: " + (entity.getModel() != null ? 
-                                            entity.getModel().getModelName() : "null"));
-        }
-        
         var dtos = entities.stream()
                     .map(this::toDto)
                     .collect(Collectors.toList());
-        
-        // Debug log for DTOs
-        for (var dto : dtos) {
-            System.out.println("DTO ID: " + dto.getId() + 
-                            ", Model Name: " + dto.getModelName() + 
-                            ", Model Provider: " + dto.getModelProvider());
-        }
         
         return dtos;
     }

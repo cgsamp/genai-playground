@@ -1,27 +1,27 @@
 // Controller
 package net.sampsoftware.genai.controller;
 
-import net.sampsoftware.genai.dto.SummaryDto;
-import net.sampsoftware.genai.repository.EntitySummaryRepository;
+import net.sampsoftware.genai.dto.EntitySummaryDto;
+import net.sampsoftware.genai.service.EntitySummaryService;
+
 import org.springframework.web.bind.annotation.*;
+
+import lombok.RequiredArgsConstructor;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/summaries")
+@RequiredArgsConstructor
 public class EntitySummaryController {
 
-    private final EntitySummaryRepository summaryRepo;
-
-    public EntitySummaryController(EntitySummaryRepository summaryRepo) {
-        this.summaryRepo = summaryRepo;
-    }
+    private final EntitySummaryService entitySummaryService;
 
     @GetMapping
-    public List<SummaryDto> getSummaries(
+    public List<EntitySummaryDto> getSummaries(
         @RequestParam String entity,
         @RequestParam List<Long> entityIds
     ) {
-        return summaryRepo.findSummariesByEntityAndIds(entity, entityIds);
+        return entitySummaryService.findByTypeAndIds(entity, entityIds);
     }
 }

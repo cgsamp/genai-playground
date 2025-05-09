@@ -1,7 +1,6 @@
 package net.sampsoftware.genai.service;
 
 import lombok.RequiredArgsConstructor;
-import net.sampsoftware.genai.service.AIService;
 import org.springframework.stereotype.Service;
 
 @Service

@@ -1,46 +1,40 @@
 package net.sampsoftware.genai.model;
 
 import jakarta.persistence.*;
-import java.time.LocalDateTime;
+import lombok.*;
+import java.time.ZonedDateTime;
 
 @Entity
 @Table(name = "entity_summary")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
 public class EntitySummary {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
+    
+    @Column(name = "model_configuration_id", insertable = false, updatable = false)
+    private Long modelConfigurationId;
+    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model_configuration_id")
     private ModelConfiguration modelConfiguration;
-
-    private String entity;
-
+    
+    @Column(name = "type")
+    private String type;
+    
     @Column(name = "entity_id")
     private Long entityId;
-
-    @Column(columnDefinition = "TEXT")
+    
+    @Column(name = "summary", columnDefinition = "text")
     private String summary;
-
+    
     @Column(name = "created_at")
-    private LocalDateTime createdAt;
-
-    // Getters and setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
-
-    public ModelConfiguration getModelConfiguration() { return modelConfiguration; }
-    public void setModelConfiguration(ModelConfiguration modelConfiguration) { this.modelConfiguration = modelConfiguration; }
-
-    public String getEntity() { return entity; }
-    public void setEntity(String entity) { this.entity = entity; }
-
-    public Long getEntityId() { return entityId; }
-    public void setEntityId(Long entityId) { this.entityId = entityId; }
-
-    public String getSummary() { return summary; }
-    public void setSummary(String summary) { this.summary = summary; }
-
-    public LocalDateTime getCreatedAt() { return createdAt; }
-    public void setCreatedAt(LocalDateTime createdAt) { this.createdAt = createdAt; }
+    @Builder.Default
+    private ZonedDateTime createdAt = ZonedDateTime.now();
+    
+    @Column(name = "batch_id")
+    private Long batchId;
 }
