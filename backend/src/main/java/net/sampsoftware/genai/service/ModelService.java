@@ -14,7 +14,7 @@ public class ModelService {
     private final ModelConfigurationRepository modelConfigurationRepo;
 
 
-    public ModelConfiguration findByIdWithModel(Long modelConfigurationId) {
+    public ModelConfiguration findConfigurationById(Long modelConfigurationId) {
         Optional<ModelConfiguration> modelConfigOpt = modelConfigurationRepo.findByIdWithModel(modelConfigurationId);
         if (modelConfigOpt.isEmpty()) {
             throw new RuntimeException("Model configuration not found");

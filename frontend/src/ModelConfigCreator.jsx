@@ -10,6 +10,7 @@ function ModelConfigCreator() {
     top_p: '',
     max_tokens: ''
   });
+  const [modelParameters, setModelParameters] = useState([]);
   const [comment, setComment] = useState('');
   const [statusMessage, setStatusMessage] = useState('');
 
@@ -21,6 +22,19 @@ function ModelConfigCreator() {
         setStatusMessage('Failed to load models');
       });
   }, []);
+
+  useEffect(() => {
+    if (selectedModelId) {
+      axios.get(`/api/model-parameters/model/${selectedModelId}`)
+        .then(res => setModelParameters(res.data))
+        .catch(err => {
+          console.error('Error loading model parameters:', err);
+          setModelParameters([]);
+        });
+    } else {
+      setModelParameters([]);
+    }
+  }, [selectedModelId]);
 
   const handleConfigChange = (e) => {
     setModelConfig(prev => ({
@@ -55,6 +69,11 @@ function ModelConfigCreator() {
     }
   };
 
+  // Find parameter by name for getting guidance info
+  const getParameterInfo = (paramName) => {
+    return modelParameters.find(param => param.paramName === paramName) || {};
+  };
+
   return (
     <div style={{ marginTop: '2rem' }}>
       <h2>Create Model Configuration</h2>
@@ -81,36 +100,69 @@ function ModelConfigCreator() {
         </select>
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label>Temperature: </label>
+      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+        <div style={{ width: '150px' }}>
+          <label>Temperature: </label>
+        </div>
         <input
           type="number"
           step="0.01"
           name="temperature"
           value={modelConfig.temperature}
           onChange={handleConfigChange}
+          style={{ marginRight: '1rem' }}
         />
+        {getParameterInfo('temperature').description && (
+          <div style={{ fontSize: '0.9rem', color: '#555', marginLeft: '1rem' }}>
+            {getParameterInfo('temperature').description}
+            {getParameterInfo('temperature').minValue && getParameterInfo('temperature').maxValue && (
+              <span> (Range: {getParameterInfo('temperature').minValue} - {getParameterInfo('temperature').maxValue})</span>
+            )}
+          </div>
+        )}
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label>Top P: </label>
+      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+        <div style={{ width: '150px' }}>
+          <label>Top P: </label>
+        </div>
         <input
           type="number"
           step="0.01"
           name="top_p"
           value={modelConfig.top_p}
           onChange={handleConfigChange}
+          style={{ marginRight: '1rem' }}
         />
+        {getParameterInfo('top_p').description && (
+          <div style={{ fontSize: '0.9rem', color: '#555', marginLeft: '1rem' }}>
+            {getParameterInfo('top_p').description}
+            {getParameterInfo('top_p').minValue && getParameterInfo('top_p').maxValue && (
+              <span> (Range: {getParameterInfo('top_p').minValue} - {getParameterInfo('top_p').maxValue})</span>
+            )}
+          </div>
+        )}
       </div>
 
-      <div style={{ marginBottom: '1rem' }}>
-        <label>Max Tokens: </label>
+      <div style={{ marginBottom: '1rem', display: 'flex', alignItems: 'center' }}>
+        <div style={{ width: '150px' }}>
+          <label>Max Tokens: </label>
+        </div>
         <input
           type="number"
           name="max_tokens"
           value={modelConfig.max_tokens}
           onChange={handleConfigChange}
+          style={{ marginRight: '1rem' }}
         />
+        {getParameterInfo('max_tokens').description && (
+          <div style={{ fontSize: '0.9rem', color: '#555', marginLeft: '1rem' }}>
+            {getParameterInfo('max_tokens').description}
+            {getParameterInfo('max_tokens').minValue && getParameterInfo('max_tokens').maxValue && (
+              <span> (Range: {getParameterInfo('max_tokens').minValue} - {getParameterInfo('max_tokens').maxValue})</span>
+            )}
+          </div>
+        )}
       </div>
 
       <div style={{ marginBottom: '1rem' }}>

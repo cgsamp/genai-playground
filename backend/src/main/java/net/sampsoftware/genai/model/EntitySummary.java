@@ -15,9 +15,6 @@ public class EntitySummary {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
     
-    @Column(name = "model_configuration_id", insertable = false, updatable = false)
-    private Long modelConfigurationId;
-    
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model_configuration_id")
     private ModelConfiguration modelConfiguration;
@@ -37,4 +34,8 @@ public class EntitySummary {
     
     @Column(name = "batch_id")
     private Long batchId;
+
+    public Long getModelConfigurationId() {
+        return modelConfiguration != null ? modelConfiguration.getId() : null;
+    }
 }

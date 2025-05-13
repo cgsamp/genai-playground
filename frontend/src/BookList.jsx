@@ -14,7 +14,7 @@ function BookList() {
         setBooks(books);
 
         const bookIds = books.map(book => book.id).join(',');
-        return axios.get(`http://localhost:8080/api/summaries?entity=ranked_books&entityIds=${bookIds}`);
+        return axios.get(`http://localhost:8080/api/summaries?entity=ranked_book&entityIds=${bookIds}`);
       })
       .then(res => setSummaries(res.data))
       .catch(err => {

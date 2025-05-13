@@ -7,6 +7,7 @@ function ModelInvoker() {
   const [inputPrompt, setInputPrompt] = useState('');
   const [response, setResponse] = useState('');
   const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     axios.get('/api/model-configurations')
@@ -18,22 +19,41 @@ function ModelInvoker() {
   }, []);
 
   const handleInvoke = async () => {
-    if (!selectedConfigId || !inputPrompt.trim()) {
-      setError('Please select a configuration and enter a prompt');
+    if (!selectedConfigId) {
+      setError("Please select a configuration");
       return;
     }
-
+    
+    setIsLoading(true);
+    setError(null);
+    
     try {
-      const res = await axios.post('/api/model-call', {
+      const res = await axios.post('/api/batch-summary', {
         modelConfigurationId: selectedConfigId,
-        prompt: inputPrompt
+        prompt: inputPrompt.trim() || ""
       });
-      setResponse(res.data.response);
+      setResponse(res.data.response || 'Success');
       setError(null);
     } catch (err) {
       console.error('Error calling model:', err);
-      setError('Failed to invoke model');
+      
+      // Extract detailed error information from the response
+      const errorData = err.response?.data;
+      
+      if (typeof errorData === 'object' && errorData.message) {
+        // If response contains structured error with message
+        setError(`Error: ${errorData.message}`);
+      } else if (typeof errorData === 'string') {
+        // If response is a string
+        setError(`Error: ${errorData}`);
+      } else {
+        // Fallback error message
+        setError('Failed to invoke model. Please try again later.');
+      }
+      
       setResponse('');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -42,7 +62,14 @@ function ModelInvoker() {
       <h2>Invoke Model</h2>
 
       {error && (
-        <div style={{ marginBottom: '1rem', color: 'red' }}>
+        <div style={{ 
+          marginBottom: '1rem', 
+          padding: '0.75rem',
+          backgroundColor: '#ffebee',
+          color: '#c62828',
+          borderRadius: '4px',
+          border: '1px solid #ef9a9a'
+        }}>
           {error}
         </div>
       )}
@@ -64,16 +91,22 @@ function ModelInvoker() {
       </div>
 
       <div style={{ marginBottom: '1rem' }}>
-        <label>Prompt: </label><br/>
+        <label>Prompt (Optional): </label><br/>
         <textarea
           value={inputPrompt}
           onChange={e => setInputPrompt(e.target.value)}
+          placeholder="Enter prompt here (optional)"
           rows={5}
           style={{ width: '400px' }}
         />
       </div>
 
-      <button onClick={handleInvoke}>Send</button>
+      <button 
+        onClick={handleInvoke} 
+        disabled={isLoading || !selectedConfigId}
+      >
+        {isLoading ? 'Processing...' : 'Send'}
+      </button>
 
       {response && (
         <div style={{ marginTop: '2rem', padding: '1rem', border: '1px solid #ccc' }}>

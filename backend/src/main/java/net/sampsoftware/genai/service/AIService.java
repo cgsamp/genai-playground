@@ -9,41 +9,36 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-public class AIService {
+public class AIService extends BaseAiApiService {
 
     private final ChatClient.Builder chatClientBuilder;
 
-    /**
-     * Generate a response from the AI model using a simple prompt string
-     */
     public String generateResponse(String promptText, ModelConfiguration modelConfig) {
         ChatClient chatClient = buildChatClient(modelConfig);
         
-        return chatClient.prompt()
+        return executeApiCall(
+            () ->
+            chatClient.prompt()
                 .user(promptText)
                 .call()
-                .content();
+                .content()
+        );
     }
 
-    /**
-     * Generate a response using a system prompt and a user prompt
-     */
     public String generateResponse(String systemPrompt, String userPrompt, 
                                  ModelConfiguration modelConfig) {
-        
         ChatClient chatClient = buildChatClient(modelConfig);
         
-        // Build the chat prompt with system and user messages
-        return chatClient.prompt()
+        return executeApiCall(
+            () ->
+            chatClient.prompt()
                 .system(systemPrompt)
                 .user(userPrompt)
                 .call()
-                .content();
+                .content()
+        );
     }
 
-    /**
-     * Build a ChatClient with options from the model configuration
-     */
     private ChatClient buildChatClient(ModelConfiguration modelConfig) {
         if (modelConfig == null || modelConfig.getModelConfig() == null) {
             return chatClientBuilder.build();

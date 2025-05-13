@@ -35,6 +35,8 @@ logging:
     '[org.springframework.boot.autoconfigure]': INFO
     '[org.springframework.web]': INFO
     '[org.springframework.web.filter.CommonsRequestLoggingFilter]': DEBUG
+    '[net.sampsoftware.genai]': DEBUG
+    '[net.sampsoftware.genai.controller]': TRACE
 
 server:
   port: 8080

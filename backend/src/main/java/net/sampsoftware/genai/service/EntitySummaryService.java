@@ -28,4 +28,8 @@ public class EntitySummaryService {
     public List<EntitySummaryDto> findByTypeAndIds(String entityType, List<Long> entityIds) {
         return entitySummaryRepository.findDtosByTypeAndEntityIds(entityType, entityIds);
     }
+
+    public List<String> findAllTypes() {
+        return entitySummaryRepository.findAllDistinctTypes();
+    }
 }
