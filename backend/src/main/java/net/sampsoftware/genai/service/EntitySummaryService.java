@@ -15,7 +15,7 @@ import java.util.List;
 public class EntitySummaryService {
 
     private final EntitySummaryRepository entitySummaryRepository;
-    
+
     @Transactional
     public EntitySummary save(EntitySummary entitySummary) {
         return entitySummaryRepository.save(entitySummary);        
