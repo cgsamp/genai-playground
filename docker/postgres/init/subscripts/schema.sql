@@ -1,11 +1,11 @@
-/*
-DROP TABLE IF EXISTS messages;
-DROP TABLE IF EXISTS entity_summary;
-DROP TABLE IF EXISTS ranked_books;
-DROP TABLE IF EXISTS book_rank_source;
-DROP TABLE IF EXISTS model_configuration;
-DROP TABLE IF EXISTS model;
-*/
+
+CREATE SEQUENCE IF NOT EXISTS messages_id_seq;
+CREATE SEQUENCE IF NOT EXISTS book_rank_source_id_seq;
+CREATE SEQUENCE IF NOT EXISTS ranked_books_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_configuration_id_seq;
+CREATE SEQUENCE IF NOT EXISTS entity_summary_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_parameter_id_seq;
 
 CREATE TABLE IF NOT EXISTS public.messages
 (
@@ -79,13 +79,6 @@ CREATE TABLE IF NOT EXISTS public.entity_summary
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
 );
-
-CREATE SEQUENCE IF NOT EXISTS public.model_parameter_id_seq
-    INCREMENT 1
-    START 1
-    MINVALUE 1
-    MAXVALUE 2147483647
-    CACHE 1;
 
 CREATE TABLE IF NOT EXISTS public.model_parameter
 (

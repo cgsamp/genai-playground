@@ -13,8 +13,8 @@ spring:
 
   datasource:
     url: jdbc:postgresql://localhost:5432/bookstore
-    username: ${POSTGRES_USERNAME}
-    password: ${POSTGRES_PASSWORD}
+    username: genai
+    password: genai
     driver-class-name: org.postgresql.Driver
 
   jpa:
@@ -40,4 +40,3 @@ logging:
 
 server:
   port: 8080
-
