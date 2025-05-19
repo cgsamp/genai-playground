@@ -1,0 +1,4976 @@
+
+>>> ./frontend/src/App.js
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import Layout from './components/layout/Layout';
+import BooksPanel from './components/books/BooksPanel';
+import ChatPanel from './components/chat/ChatPanel';
+import ModelsPanel from './components/models/ModelsPanel';
+import ModelConfigCreator from './components/models/ModelConfigCreator';
+import ModelConfigurationList from './components/models/ModelConfigurationList';
+import ModelInvoker from './components/models/ModelInvoker';
+import CytoscapePanel from './components/visualization/CytoscapePanel';
+
+function App() {
+    return (
+        <Router>
+            <Routes>
+                <Route path="/" element={<Layout />}>
+                    <Route index element={<Navigate to="/chat" />} />
+                    <Route path="chat" element={<ChatPanel />} />
+                    <Route path="models" element={<ModelsPanel />} />
+                    <Route path="configs" element={
+                        <div className="space-y-6">
+                            <ModelConfigCreator />
+                            <ModelConfigurationList />
+                        </div>
+                    } />
+                    <Route path="invoke" element={<ModelInvoker />} />
+                    <Route path="books" element={<BooksPanel />} />
+                    <Route path="cytoscape" element={<CytoscapePanel />} />
+                    <Route path="*" element={<Navigate to="/chat" />} />
+                </Route>
+            </Routes>
+        </Router>
+    );
+}
+
+export default App;
+
+-----------
+
+>>> ./frontend/src/components/chat/Chat.js
+import React, { useState } from 'react';
+import axios from 'axios';
+
+function Chat() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState('');
+
+  const sendMessage = async () => {
+    if (!input.trim()) return;
+
+    const userMessage = { role: 'user', content: input };
+    setMessages([...messages, userMessage]);
+
+    try {
+      const response = await axios.post('http://localhost:8080/chat', { content: input }, {
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const botMessage = { role: 'bot', content: response.data.reply };
+      setMessages(prev => [...prev, botMessage]);
+    } catch (error) {
+      console.error('Error calling API:', error);
+      setMessages(prev => [...prev, { role: 'error', content: 'Error talking to backend.' }]);
+    }
+
+    setInput('');
+  };
+
+  return (
+    <div>
+      <div style={{ marginBottom: '1rem' }}>
+        {messages.map((msg, index) => (
+          <div key={index} style={{ marginBottom: '.5rem' }}>
+            <strong>{msg.role}:</strong> {msg.content}
+          </div>
+        ))}
+      </div>
+      <input
+        type="text"
+        value={input}
+        placeholder="Say something..."
+        onChange={e => setInput(e.target.value)}
+        onKeyDown={e => e.key === 'Enter' && sendMessage()}
+        style={{ width: '80%', padding: '0.5rem' }}
+      />
+      <button onClick={sendMessage} style={{ marginLeft: '0.5rem' }}>
+        Send
+      </button>
+    </div>
+  );
+}
+
+export default Chat;
+
+-----------
+
+>>> ./frontend/src/index.js
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import App from './App';
+import './index.css';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+-----------
+
+>>> ./frontend/src/reportWebVitals.js
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+-----------
+
+>>> ./frontend/src/services/apiService.js
+import axios from 'axios';
+
+const BASE_URL = 'http://localhost:8080';
+
+export const api = {
+    // Chat
+    sendChatMessage: (content) =>
+        axios.post(`${BASE_URL}/chat`, { content }),
+
+    // Books
+    getBooks: () =>
+        axios.get(`${BASE_URL}/api/books`),
+    getBookSummaries: (bookIds) =>
+        axios.get(`${BASE_URL}/api/summaries?entity=ranked_book&entityIds=${bookIds}`),
+
+    // Models
+    getModels: () =>
+        axios.get(`${BASE_URL}/api/models`),
+    createModel: (modelData) =>
+        axios.post(`${BASE_URL}/api/models`, modelData),
+
+    // Model Configurations
+    getModelConfigurations: () =>
+        axios.get(`${BASE_URL}/api/model-configurations`),
+    createModelConfiguration: (configData) =>
+        axios.post(`${BASE_URL}/api/model-configurations`, configData),
+    getModelParameters: (modelId) =>
+        axios.get(`${BASE_URL}/api/model-parameters/model/${modelId}`),
+
+    // Model Invocation
+    invokeModel: (modelConfigId, prompt) =>
+        axios.post(`${BASE_URL}/api/batch-summary`, {
+            modelConfigurationId: modelConfigId,
+            prompt: prompt
+        }),
+
+    // Cytoscape
+    getCytoscapeData: () =>
+        axios.get(`${BASE_URL}/api/cytoscape/books-summaries`)
+};
+
+-----------
+
+>>> ./frontend/src/tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+    content: [
+        "./src/**/*.{js,jsx,ts,tsx}",
+    ],
+    theme: {
+        extend: {},
+    },
+    plugins: [
+        require('@tailwindcss/forms'),
+    ],
+}
+
+-----------
+
+>>> ./frontend/tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+  content: [],
+  theme: {
+    extend: {},
+  },
+  plugins: [],
+}
+
+
+-----------
+
+>>> ./frontend/src/components/books/BookList.jsx
+// BookList.jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function BookList() {
+    const [books, setBooks] = useState([]);
+    const [summaries, setSummaries] = useState([]);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        axios.get('http://localhost:8080/api/books')
+            .then(res => {
+                const books = res.data;
+                setBooks(books);
+
+                const bookIds = books.map(book => book.id).join(',');
+                return axios.get(`http://localhost:8080/api/summaries?entity=ranked_book&entityIds=${bookIds}`);
+            })
+            .then(res => setSummaries(res.data))
+            .catch(err => {
+                console.error('Error loading books or summaries:', err);
+                setError('Failed to load books');
+            });
+    }, []);
+
+    function getSummariesForBook(bookId) {
+        return summaries.filter(s => s.entityId === bookId);
+    }
+
+    if (error) return <div>{error}</div>;
+
+    return (
+        <table
+            style={{
+                width: '100%',
+                tableLayout: 'fixed',
+                borderCollapse: 'collapse'
+            }}>
+            <thead>
+            <tr>
+                <th style={{ width: '30px' }}>Rank</th>
+                <th style={{ width: '160px' }}>Title</th>
+                <th style={{ width: '100px' }}>Author</th>
+                <th style={{ width: '40px' }}>Year</th>
+                <th style={{ width: '100px' }}>Source</th>
+                <th>Summaries</th>
+            </tr>
+            </thead>
+            <tbody>
+            {books.map(book => (
+                <tr key={book.id}>
+                    <td>{book.rank}</td>
+                    <td>{book.title}</td>
+                    <td>{book.authorName}</td>
+                    <td>{book.publishYear}</td>
+                    <td>{book.source?.orgName}</td>
+                    <td>
+                        <ul style={{ paddingLeft: '1rem', margin: 0 }}>
+                            {getSummariesForBook(book.id).map(summary => (
+                                <li key={summary.id}>
+                                    <strong>{summary.modelName}</strong>
+                                    <span style={{fontSize: '0.85rem', color: '#555'}}>
+        {summary.modelConfig && ` [${
+            Object.entries(summary.modelConfig)
+                .map(([key, value]) => `${key}: ${typeof value === 'number' ? value.toFixed(2) : value}`)
+                .join(', ')
+        }]`}
+      </span>
+                                    <span style={{ color: '#666', marginLeft: '0.25rem' }}>— {new Date(summary.createdAt).toLocaleString()}</span>
+                                    <br/>
+                                    {summary.summary}
+                                </li>
+                            ))}
+                        </ul>
+                    </td>
+                </tr>
+            ))}
+            </tbody>
+        </table>
+    );
+}
+
+export default BookList;
+
+-----------
+
+>>> ./frontend/src/components/books/BooksPanel.jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+const BooksPanel = () => {
+    const [books, setBooks] = useState([]);
+    const [summaries, setSummaries] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [expandedBook, setExpandedBook] = useState(null);
+
+    useEffect(() => {
+        fetchBooksAndSummaries();
+    }, []);
+
+    const fetchBooksAndSummaries = async () => {
+        setIsLoading(true);
+        try {
+            // Fetch books
+            const booksResponse = await axios.get('http://localhost:8080/api/books');
+            const books = booksResponse.data;
+            setBooks(books);
+
+            // Get book IDs
+            const bookIds = books.map(book => book.id).join(',');
+
+            // Fetch summaries for these books
+            if (books.length > 0) {
+                const summariesResponse = await axios.get(`http://localhost:8080/api/summaries?entity=ranked_book&entityIds=${bookIds}`);
+                setSummaries(summariesResponse.data);
+            }
+
+            setError(null);
+        } catch (err) {
+            console.error('Error loading books or summaries:', err);
+            setError('Failed to load books data');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const getSummariesForBook = (bookId) => {
+        return summaries.filter(s => s.entityId === bookId);
+    };
+
+    const toggleBookExpansion = (bookId) => {
+        if (expandedBook === bookId) {
+            setExpandedBook(null);
+        } else {
+            setExpandedBook(bookId);
+        }
+    };
+
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        return new Date(dateString).toLocaleString();
+    };
+
+    if (isLoading) {
+        return (
+            <div className="card p-8 text-center">
+                <svg className="animate-spin h-8 w-8 mx-auto text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="mt-2 text-gray-600">Loading books and summaries...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="card p-8 text-center">
+                <div className="text-red-600 mb-4">{error}</div>
+                <button onClick={fetchBooksAndSummaries} className="btn btn-primary">
+                    Try Again
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="card">
+            <div className="card-header flex justify-between items-center">
+                <h3 className="text-lg font-medium">Book List</h3>
+                <button
+                    onClick={fetchBooksAndSummaries}
+                    className="btn btn-secondary text-sm"
+                >
+                    Refresh
+                </button>
+            </div>
+
+            {books.length === 0 ? (
+                <div className="p-8 text-center text-gray-600">
+                    <p>No books available in the database.</p>
+                </div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-16">Rank</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Title</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Author</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-24">Year</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Source</th>
+                            <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Summaries</th>
+                        </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                        {books.map((book) => {
+                            const bookSummaries = getSummariesForBook(book.id);
+                            const isExpanded = expandedBook === book.id;
+
+                            return (
+                                <tr
+                                    key={book.id}
+                                    className="hover:bg-gray-50 cursor-pointer"
+                                    onClick={() => toggleBookExpansion(book.id)}
+                                >
+                                    <td className="px-4 py-4 whitespace-nowrap text-gray-900">{book.rank}</td>
+                                    <td className="px-4 py-4 font-medium text-gray-900">{book.title}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap">{book.authorName}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap">{book.publishYear}</td>
+                                    <td className="px-4 py-4 whitespace-nowrap">{book.source?.orgName}</td>
+                                    <td className="px-4 py-4">
+                                        {bookSummaries.length === 0 ? (
+                                            <span className="text-gray-500">No summaries available</span>
+                                        ) : (
+                                            <div>
+                                                <div className="flex items-center justify-between">
+                                                    <span className="font-medium">{bookSummaries.length} Summary/ies</span>
+                                                    <button
+                                                        className="text-blue-600 hover:text-blue-800 text-sm"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            toggleBookExpansion(book.id);
+                                                        }}
+                                                    >
+                                                        {isExpanded ? 'Collapse' : 'Expand'}
+                                                    </button>
+                                                </div>
+
+                                                {isExpanded && (
+                                                    <div className="mt-3 space-y-4">
+                                                        {bookSummaries.map(summary => (
+                                                            <div key={summary.id} className="border-t pt-3">
+                                                                <div className="flex justify-between">
+                                                                    <span className="font-medium">{summary.modelName}</span>
+                                                                    <span className="text-xs text-gray-500">
+                                      {formatDate(summary.createdAt)}
+                                    </span>
+                                                                </div>
+
+                                                                {summary.modelConfig && (
+                                                                    <div className="text-xs text-gray-600 mt-1">
+                                                                        {Object.entries(summary.modelConfig)
+                                                                            .map(([key, value]) =>
+                                                                                `${key}: ${typeof value === 'number' ? value.toFixed(2) : value}`
+                                                                            )
+                                                                            .join(', ')}
+                                                                    </div>
+                                                                )}
+
+                                                                <div className="mt-2 text-gray-700">
+                                                                    {summary.summary}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default BooksPanel;
+
+-----------
+
+>>> ./frontend/src/components/chat/ChatPanel.jsx
+import React, { useState, useEffect, useRef } from 'react';
+import axios from 'axios';
+
+const ChatPanel = () => {
+    const [messages, setMessages] = useState([]);
+    const [input, setInput] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+    const messagesEndRef = useRef(null);
+
+    // Scroll to bottom whenever messages change
+    useEffect(() => {
+        scrollToBottom();
+    }, [messages]);
+
+    const scrollToBottom = () => {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const sendMessage = async () => {
+        if (!input.trim()) return;
+
+        const userMessage = { role: 'user', content: input };
+        setMessages([...messages, userMessage]);
+        setInput('');
+        setIsLoading(true);
+
+        try {
+            const response = await axios.post('http://localhost:8080/chat', { content: input }, {
+                headers: { 'Content-Type': 'application/json' }
+            });
+
+            const botMessage = { role: 'bot', content: response.data.reply };
+            setMessages(prev => [...prev, botMessage]);
+        } catch (error) {
+            console.error('Error calling API:', error);
+            setMessages(prev => [...prev, {
+                role: 'error',
+                content: 'Error communicating with the service. Please try again later.'
+            }]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
+    };
+
+    return (
+        <div className="card flex flex-col h-full">
+            <div className="card-header">
+                <h3 className="text-lg font-medium">Chat with AI</h3>
+            </div>
+
+            <div className="flex-1 overflow-hidden flex flex-col p-4">
+                <div className="flex-1 overflow-y-auto mb-4">
+                    {messages.length === 0 ? (
+                        <div className="text-center text-gray-500 my-20">
+                            <p className="mb-2">Start a conversation with the AI...</p>
+                            <p className="text-sm">Try asking about a book or requesting a creative task</p>
+                        </div>
+                    ) : (
+                        messages.map((msg, index) => (
+                            <div
+                                key={index}
+                                className={`mb-4 ${
+                                    msg.role === 'user'
+                                        ? 'bg-blue-50 rounded-lg p-3 ml-12'
+                                        : msg.role === 'error'
+                                            ? 'bg-red-50 text-red-700 rounded-lg p-3'
+                                            : 'bg-gray-100 rounded-lg p-3 mr-12'
+                                }`}
+                            >
+                                <div className="font-medium mb-1">
+                                    {msg.role === 'user' ? 'You' : msg.role === 'error' ? 'Error' : 'AI Assistant'}:
+                                </div>
+                                <div className="whitespace-pre-wrap">{msg.content}</div>
+                            </div>
+                        ))
+                    )}
+                    {isLoading && (
+                        <div className="flex items-center justify-center space-x-2 mb-4 bg-gray-100 rounded-lg p-3 mr-12">
+                            <div className="font-medium">AI Assistant is thinking</div>
+                            <div className="flex space-x-1">
+                                <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                <div className="h-2 w-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                            </div>
+                        </div>
+                    )}
+                    <div ref={messagesEndRef} />
+                </div>
+
+                <div className="flex items-end">
+          <textarea
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="Type your message..."
+              className="flex-1 border rounded-lg p-3 mr-2 resize-none"
+              rows="3"
+              disabled={isLoading}
+          />
+                    <button
+                        onClick={sendMessage}
+                        disabled={isLoading || !input.trim()}
+                        className={`btn ${isLoading || !input.trim() ? 'bg-blue-300' : 'btn-primary'} h-12`}
+                    >
+                        Send
+                    </button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ChatPanel;
+
+-----------
+
+>>> ./frontend/src/components/layout/Layout.jsx
+import React from 'react';
+import { Outlet, NavLink, useLocation } from 'react-router-dom';
+import {
+    Book,
+    MessageCircle,
+    Cpu,
+    Settings,
+    BarChart2,
+    Command,
+    Terminal
+} from 'lucide-react';
+
+const Layout = () => {
+    const location = useLocation();
+
+    // Navigation configuration with icons and labels
+    const navigation = [
+        { path: '/chat', label: 'Chat', icon: <MessageCircle size={18} /> },
+        { path: '/models', label: 'Models', icon: <Cpu size={18} /> },
+        { path: '/configs', label: 'Configurations', icon: <Settings size={18} /> },
+        { path: '/invoke', label: 'Invoke Model', icon: <Command size={18} /> },
+        { path: '/books', label: 'Books', icon: <Book size={18} /> },
+        { path: '/graph', label: 'Visualizations', icon: <BarChart2 size={18} /> },
+        { path: '/cytoscape', label: 'Relationship Graph', icon: <Terminal size={18} /> }
+    ];
+
+    return (
+        <div className="flex h-screen bg-gray-100">
+            {/* Sidebar Navigation */}
+            <div className="w-64 bg-white shadow-md flex flex-col">
+                <div className="p-4 border-b">
+                    <h1 className="text-xl font-bold text-gray-800">GenAI Dashboard</h1>
+                </div>
+                <nav className="mt-4 flex-1 overflow-y-auto">
+                    {navigation.map(item => (
+                        <NavLink
+                            key={item.path}
+                            to={item.path}
+                            className={({ isActive }) =>
+                                `nav-link ${isActive ? 'nav-link-active' : 'nav-link-inactive'}`
+                            }
+                        >
+                            <span className="mr-3">{item.icon}</span>
+                            {item.label}
+                        </NavLink>
+                    ))}
+                </nav>
+                <div className="p-4 border-t text-xs text-gray-500">
+                    GenAI Dashboard v1.0.0
+                </div>
+            </div>
+
+            {/* Main Content Area */}
+            <div className="flex-1 flex flex-col overflow-hidden">
+                <header className="bg-white p-4 shadow-sm">
+                    <h2 className="text-xl font-semibold text-gray-800">
+                        {navigation.find(item => item.path === location.pathname)?.label || 'Dashboard'}
+                    </h2>
+                </header>
+                <main className="flex-1 p-6 overflow-auto">
+                    <Outlet />
+                </main>
+            </div>
+        </div>
+    );
+};
+
+export default Layout;
+
+-----------
+
+>>> ./frontend/src/components/models/ModelConfigCreator.jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const ModelConfigCreator = () => {
+  const [models, setModels] = useState([]);
+  const [selectedModelId, setSelectedModelId] = useState('');
+  const [modelParameters, setModelParameters] = useState([]);
+  const [modelConfig, setModelConfig] = useState({
+    temperature: '',
+    top_p: '',
+    max_tokens: ''
+  });
+  const [comment, setComment] = useState('');
+  const [statusMessage, setStatusMessage] = useState('');
+  const [messageType, setMessageType] = useState(''); // 'success' or 'error'
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    fetchModels();
+  }, []);
+
+  useEffect(() => {
+    if (selectedModelId) {
+      fetchModelParameters(selectedModelId);
+    } else {
+      setModelParameters([]);
+    }
+  }, [selectedModelId]);
+
+  const fetchModels = async () => {
+    try {
+      const response = await axios.get('/api/models');
+      setModels(response.data);
+    } catch (err) {
+      console.error('Error loading models:', err);
+      setStatusMessage('Failed to load models');
+      setMessageType('error');
+    }
+  };
+
+  const fetchModelParameters = async (modelId) => {
+    try {
+      const response = await axios.get(`/api/model-parameters/model/${modelId}`);
+      setModelParameters(response.data);
+
+      // Initialize form with default values
+      const defaults = {};
+      response.data.forEach(param => {
+        if (param.defaultValue) {
+          defaults[param.paramName] = param.defaultValue;
+        }
+      });
+
+      setModelConfig({
+        temperature: defaults.temperature || '',
+        top_p: defaults.top_p || '',
+        max_tokens: defaults.max_tokens || ''
+      });
+    } catch (err) {
+      console.error('Error loading model parameters:', err);
+      setModelParameters([]);
+    }
+  };
+
+  const handleConfigChange = (e) => {
+    const { name, value } = e.target;
+    setModelConfig(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async () => {
+    if (!selectedModelId) {
+      setStatusMessage('Please select a model');
+      setMessageType('error');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      await axios.post('/api/model-configurations', {
+        modelId: selectedModelId,
+        modelConfig: {
+          temperature: parseFloat(modelConfig.temperature),
+          top_p: parseFloat(modelConfig.top_p),
+          max_tokens: parseInt(modelConfig.max_tokens, 10)
+        },
+        comment
+      });
+
+      setStatusMessage('Model configuration saved successfully!');
+      setMessageType('success');
+      setSelectedModelId('');
+      setModelConfig({ temperature: '', top_p: '', max_tokens: '' });
+      setComment('');
+    } catch (error) {
+      console.error('Error saving configuration:', error);
+      setStatusMessage('Failed to save configuration');
+      setMessageType('error');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Find parameter by name for getting guidance info
+  const getParameterInfo = (paramName) => {
+    return modelParameters.find(param => param.paramName === paramName) || {};
+  };
+
+  return (
+      <div className="card">
+        <div className="card-header">
+          <h3 className="text-lg font-medium">Create Model Configuration</h3>
+        </div>
+        <div className="card-body">
+          {statusMessage && (
+              <div className={`mb-4 p-3 rounded-md ${
+                  messageType === 'success'
+                      ? 'bg-green-50 text-green-700 border border-green-200'
+                      : 'bg-red-50 text-red-700 border border-red-200'
+              }`}>
+                {statusMessage}
+              </div>
+          )}
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Select Model</label>
+              <select
+                  value={selectedModelId}
+                  onChange={e => setSelectedModelId(e.target.value)}
+                  className="input"
+              >
+                <option value="">-- Select a Model --</option>
+                {models.map(model => (
+                    <option key={model.id} value={model.id}>
+                      {model.modelName} ({model.modelProvider})
+                    </option>
+                ))}
+              </select>
+            </div>
+
+            {selectedModelId && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Temperature</label>
+                    <div className="flex items-center">
+                      <input
+                          type="number"
+                          step="0.01"
+                          name="temperature"
+                          value={modelConfig.temperature}
+                          onChange={handleConfigChange}
+                          className="input max-w-xs"
+                      />
+                      {getParameterInfo('temperature').description && (
+                          <div className="ml-4 text-sm text-gray-500">
+                            {getParameterInfo('temperature').description}
+                            {getParameterInfo('temperature').minValue && getParameterInfo('temperature').maxValue && (
+                                <span className="block mt-1">
+                          Range: {getParameterInfo('temperature').minValue} - {getParameterInfo('temperature').maxValue}
+                        </span>
+                            )}
+                          </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Top P</label>
+                    <div className="flex items-center">
+                      <input
+                          type="number"
+                          step="0.01"
+                          name="top_p"
+                          value={modelConfig.top_p}
+                          onChange={handleConfigChange}
+                          className="input max-w-xs"
+                      />
+                      {getParameterInfo('top_p').description && (
+                          <div className="ml-4 text-sm text-gray-500">
+                            {getParameterInfo('top_p').description}
+                            {getParameterInfo('top_p').minValue && getParameterInfo('top_p').maxValue && (
+                                <span className="block mt-1">
+                          Range: {getParameterInfo('top_p').minValue} - {getParameterInfo('top_p').maxValue}
+                        </span>
+                            )}
+                          </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Max Tokens</label>
+                    <div className="flex items-center">
+                      <input
+                          type="number"
+                          name="max_tokens"
+                          value={modelConfig.max_tokens}
+                          onChange={handleConfigChange}
+                          className="input max-w-xs"
+                      />
+                      {getParameterInfo('max_tokens').description && (
+                          <div className="ml-4 text-sm text-gray-500">
+                            {getParameterInfo('max_tokens').description}
+                            {getParameterInfo('max_tokens').minValue && getParameterInfo('max_tokens').maxValue && (
+                                <span className="block mt-1">
+                          Range: {getParameterInfo('max_tokens').minValue} - {getParameterInfo('max_tokens').maxValue}
+                        </span>
+                            )}
+                          </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Comment</label>
+                    <textarea
+                        value={comment}
+                        onChange={e => setComment(e.target.value)}
+                        className="input"
+                        rows="3"
+                        placeholder="Add a description for this configuration"
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <button
+                        onClick={handleSubmit}
+                        disabled={isLoading}
+                        className="btn btn-primary"
+                    >
+                      {isLoading ? 'Saving...' : 'Save Configuration'}
+                    </button>
+                  </div>
+                </>
+            )}
+          </div>
+        </div>
+      </div>
+  );
+};
+
+export default ModelConfigCreator;
+
+-----------
+
+>>> ./frontend/src/components/models/ModelConfigurationList.jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function ModelConfigurationList() {
+  const [configs, setConfigs] = useState([]);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    axios.get('/api/model-configurations')
+      .then(res => setConfigs(res.data))
+      .catch(err => {
+        console.error('Error loading model configurations:', err);
+        setError('Failed to load configurations');
+      });
+  }, []);
+
+  if (error) return <div>{error}</div>;
+
+  return (
+    <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse' }}>
+      <thead>
+        <tr>
+          <th style={{ width: '160px' }}>Model Name</th>
+          <th style={{ width: '80px' }}>Temperature</th>
+          <th style={{ width: '80px' }}>Top P</th>
+          <th style={{ width: '80px' }}>Max Tokens</th>
+          <th style={{ width: '200px' }}>Created</th>
+          <th>Comment</th>
+        </tr>
+      </thead>
+      <tbody>
+        {configs.map(cfg => (
+          <tr key={cfg.id}>
+            <td>{cfg.modelName || 'Unknown'}</td>
+            <td>{cfg.modelConfig?.temperature}</td>
+            <td>{cfg.modelConfig?.top_p}</td>
+            <td>{cfg.modelConfig?.max_tokens}</td>
+            <td>{cfg.createdAt ? new Date(cfg.createdAt).toLocaleString() : ''}</td>
+            <td>{cfg.comment}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+export default ModelConfigurationList;
+
+-----------
+
+>>> ./frontend/src/components/models/ModelInvoker.jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const ModelInvoker = () => {
+  const [configs, setConfigs] = useState([]);
+  const [selectedConfigId, setSelectedConfigId] = useState('');
+  const [inputPrompt, setInputPrompt] = useState('');
+  const [response, setResponse] = useState('');
+  const [error, setError] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingConfigs, setIsLoadingConfigs] = useState(true);
+
+  useEffect(() => {
+    fetchConfigurations();
+  }, []);
+
+  const fetchConfigurations = async () => {
+    setIsLoadingConfigs(true);
+    try {
+      const res = await axios.get('/api/model-configurations');
+      setConfigs(res.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error loading configurations:', err);
+      setError('Failed to load model configurations');
+    } finally {
+      setIsLoadingConfigs(false);
+    }
+  };
+
+  const handleInvoke = async () => {
+    if (!selectedConfigId) {
+      setError("Please select a configuration");
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+    setResponse('');
+
+    try {
+      const res = await axios.post('/api/batch-summary', {
+        modelConfigurationId: selectedConfigId,
+        prompt: inputPrompt.trim() || ""
+      });
+      setResponse(res.data.response || 'Success');
+      setError(null);
+    } catch (err) {
+      console.error('Error calling model:', err);
+
+      // Extract detailed error information from the response
+      const errorData = err.response?.data;
+
+      if (typeof errorData === 'object' && errorData.message) {
+        // If response contains structured error with message
+        setError(`Error: ${errorData.message}`);
+      } else if (typeof errorData === 'string') {
+        // If response is a string
+        setError(`Error: ${errorData}`);
+      } else {
+        // Fallback error message
+        setError('Failed to invoke model. Please try again later.');
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const getConfigDisplayName = (config) => {
+    const modelName = config.modelName || 'Unknown';
+    const comment = config.comment ? `: ${config.comment}` : '';
+    return `${modelName}${comment}`;
+  };
+
+  return (
+      <div className="card">
+        <div className="card-header">
+          <h3 className="text-lg font-medium">Invoke Model</h3>
+        </div>
+        <div className="card-body">
+          {error && (
+              <div className="mb-6 p-4 bg-red-50 text-red-700 border border-red-200 rounded-md">
+                {error}
+              </div>
+          )}
+
+          <div className="space-y-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Select Configuration
+              </label>
+
+              {isLoadingConfigs ? (
+                  <div className="mt-2 text-gray-500">Loading configurations...</div>
+              ) : configs.length === 0 ? (
+                  <div className="mt-2 text-gray-500">
+                    No configurations available. Please create one first.
+                  </div>
+              ) : (
+                  <select
+                      value={selectedConfigId}
+                      onChange={e => setSelectedConfigId(e.target.value)}
+                      className="input"
+                      disabled={isLoading}
+                  >
+                    <option value="">-- Select a Configuration --</option>
+                    {configs.map(cfg => (
+                        <option key={cfg.id} value={cfg.id}>
+                          {getConfigDisplayName(cfg)}
+                        </option>
+                    ))}
+                  </select>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Prompt (Optional)
+              </label>
+              <textarea
+                  value={inputPrompt}
+                  onChange={e => setInputPrompt(e.target.value)}
+                  className="input"
+                  rows="6"
+                  placeholder="Enter prompt here (optional)"
+                  disabled={isLoading}
+              ></textarea>
+            </div>
+
+            <div>
+              <button
+                  onClick={handleInvoke}
+                  disabled={isLoading || !selectedConfigId || configs.length === 0}
+                  className={`btn ${
+                      isLoading || !selectedConfigId || configs.length === 0
+                          ? 'bg-blue-300 text-white cursor-not-allowed'
+                          : 'btn-primary'
+                  }`}
+              >
+                {isLoading ? 'Processing...' : 'Send'}
+              </button>
+            </div>
+
+            {response && (
+                <div className="mt-8">
+                  <h3 className="text-lg font-medium mb-2">Response:</h3>
+                  <div className="p-4 border rounded-md bg-gray-50">
+                    <pre className="whitespace-pre-wrap">{response}</pre>
+                  </div>
+                </div>
+            )}
+          </div>
+        </div>
+      </div>
+  );
+};
+
+export default ModelInvoker;
+
+-----------
+
+>>> ./frontend/src/components/models/ModelManagement.jsx
+// ModelManagement.jsx
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+
+function ModelManagement() {
+  const [models, setModels] = useState([]);
+  const [error, setError] = useState(null);
+  const [newModel, setNewModel] = useState({
+    modelName: '',
+    modelProvider: '',
+    modelApiUrl: '',
+    comment: ''
+  });
+
+  // Fetch models on component mount
+  useEffect(() => {
+    fetchModels();
+  }, []);
+
+  const fetchModels = () => {
+    axios.get('/api/models')
+      .then(res => {
+        console.log("Models data:", res.data);
+        setModels(res.data);
+      })
+      .catch(err => {
+        console.error('Error loading models:', err);
+        setError('Failed to load models');
+      });
+  };
+
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewModel(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await axios.post('/api/models', newModel);
+      // Reset form
+      setNewModel({
+        modelName: '',
+        modelProvider: '',
+        modelApiUrl: '',
+        comment: ''
+      });
+      // Refresh model list
+      fetchModels();
+    } catch (error) {
+      console.error('Error creating model:', error);
+      setError('Failed to create model');
+    }
+  };
+
+  if (error) return <div>{error}</div>;
+
+  return (
+    <div style={{ marginTop: '2rem' }}>
+      <h2>Available Models</h2>
+      
+      <table style={{ width: '100%', tableLayout: 'fixed', borderCollapse: 'collapse', marginBottom: '2rem' }}>
+        <thead>
+          <tr>
+            <th style={{ width: '160px' }}>Model Name</th>
+            <th style={{ width: '120px' }}>Provider</th>
+            <th style={{ width: '200px' }}>API URL</th>
+            <th>Comment</th>
+          </tr>
+        </thead>
+        <tbody>
+          {models.map(model => (
+            <tr key={model.id}>
+              <td>{model.modelName}</td>
+              <td>{model.modelProvider}</td>
+              <td>{model.modelApiUrl}</td>
+              <td>{model.comment}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h2>Add New Model</h2>
+      <form onSubmit={handleSubmit} style={{ marginBottom: '2rem' }}>
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Model Name: </label>
+          <input
+            type="text"
+            name="modelName"
+            value={newModel.modelName}
+            onChange={handleInputChange}
+            style={{ width: '300px' }}
+            required
+          />
+        </div>
+
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Provider: </label>
+          <input
+            type="text"
+            name="modelProvider"
+            value={newModel.modelProvider}
+            onChange={handleInputChange}
+            style={{ width: '300px' }}
+            required
+          />
+        </div>
+
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>API URL: </label>
+          <input
+            type="text"
+            name="modelApiUrl"
+            value={newModel.modelApiUrl}
+            onChange={handleInputChange}
+            style={{ width: '300px' }}
+          />
+        </div>
+
+        <div style={{ marginBottom: '1rem' }}>
+          <label style={{ display: 'block', marginBottom: '0.5rem' }}>Comment: </label>
+          <textarea
+            name="comment"
+            value={newModel.comment}
+            onChange={handleInputChange}
+            rows={3}
+            style={{ width: '300px' }}
+          />
+        </div>
+
+        <button type="submit">Add Model</button>
+      </form>
+    </div>
+  );
+}
+
+export default ModelManagement;
+-----------
+
+>>> ./frontend/src/components/models/ModelsPanel.jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const ModelsPanel = () => {
+    const [models, setModels] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [newModel, setNewModel] = useState({
+        modelName: '',
+        modelProvider: '',
+        modelApiUrl: '',
+        comment: ''
+    });
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [successMessage, setSuccessMessage] = useState('');
+
+    useEffect(() => {
+        fetchModels();
+    }, []);
+
+    const fetchModels = async () => {
+        setIsLoading(true);
+        try {
+            const response = await axios.get('/api/models');
+            setModels(response.data);
+            setError(null);
+        } catch (err) {
+            console.error('Error loading models:', err);
+            setError('Failed to load models. Please try again later.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setNewModel(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+        setIsSubmitting(true);
+        setSuccessMessage('');
+
+        try {
+            await axios.post('/api/models', newModel);
+            // Reset form
+            setNewModel({
+                modelName: '',
+                modelProvider: '',
+                modelApiUrl: '',
+                comment: ''
+            });
+            // Show success message
+            setSuccessMessage('Model added successfully!');
+            // Refresh model list
+            fetchModels();
+        } catch (error) {
+            console.error('Error creating model:', error);
+            setError('Failed to create model. Please try again.');
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <div className="space-y-6">
+            {/* Available Models */}
+            <div className="card">
+                <div className="card-header flex justify-between items-center">
+                    <h3 className="text-lg font-medium">Available Models</h3>
+                    <button
+                        onClick={fetchModels}
+                        disabled={isLoading}
+                        className="btn btn-secondary text-sm"
+                    >
+                        Refresh
+                    </button>
+                </div>
+
+                {isLoading ? (
+                    <div className="p-8 text-center">
+                        <svg className="animate-spin h-8 w-8 mx-auto text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        <p className="mt-2 text-gray-600">Loading models...</p>
+                    </div>
+                ) : error ? (
+                    <div className="p-8 text-center text-red-600">
+                        <p>{error}</p>
+                        <button onClick={fetchModels} className="mt-4 btn btn-primary">
+                            Try Again
+                        </button>
+                    </div>
+                ) : models.length === 0 ? (
+                    <div className="p-8 text-center text-gray-600">
+                        <p>No models available. Add your first model below.</p>
+                    </div>
+                ) : (
+                    <div className="overflow-x-auto">
+                        <table className="min-w-full divide-y divide-gray-200">
+                            <thead className="bg-gray-50">
+                            <tr>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model Name</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Provider</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">API URL</th>
+                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comment</th>
+                            </tr>
+                            </thead>
+                            <tbody className="bg-white divide-y divide-gray-200">
+                            {models.map((model, index) => (
+                                <tr key={model.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                    <td className="px-6 py-4 whitespace-nowrap">{model.modelName}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{model.modelProvider}</td>
+                                    <td className="px-6 py-4 whitespace-nowrap">{model.modelApiUrl}</td>
+                                    <td className="px-6 py-4">{model.comment}</td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </div>
+
+            {/* Add New Model */}
+            <div className="card">
+                <div className="card-header">
+                    <h3 className="text-lg font-medium">Add New Model</h3>
+                </div>
+                <div className="card-body">
+                    {successMessage && (
+                        <div className="mb-4 p-3 bg-green-50 text-green-700 border border-green-200 rounded-md">
+                            {successMessage}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} className="grid grid-cols-1 gap-6">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Model Name</label>
+                            <input
+                                type="text"
+                                name="modelName"
+                                value={newModel.modelName}
+                                onChange={handleInputChange}
+                                className="input"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Provider</label>
+                            <input
+                                type="text"
+                                name="modelProvider"
+                                value={newModel.modelProvider}
+                                onChange={handleInputChange}
+                                className="input"
+                                required
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">API URL</label>
+                            <input
+                                type="text"
+                                name="modelApiUrl"
+                                value={newModel.modelApiUrl}
+                                onChange={handleInputChange}
+                                className="input"
+                            />
+                        </div>
+
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Comment</label>
+                            <textarea
+                                name="comment"
+                                value={newModel.comment}
+                                onChange={handleInputChange}
+                                className="input"
+                                rows="3"
+                            ></textarea>
+                        </div>
+
+                        <div>
+                            <button
+                                type="submit"
+                                className="btn btn-primary"
+                                disabled={isSubmitting}
+                            >
+                                {isSubmitting ? 'Adding...' : 'Add Model'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+export default ModelsPanel;
+
+-----------
+
+>>> ./frontend/src/components/visualization/CytoscapePanel.jsx
+import React, { useEffect, useRef, useState } from 'react';
+import axios from 'axios';
+import cytoscape from 'cytoscape';
+
+const CytoscapePanel = () => {
+    const cyRef = useRef(null);
+    const containerRef = useRef(null);
+    const [selectedNode, setSelectedNode] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+    const [layout, setLayout] = useState('cose');
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                setLoading(true);
+                const response = await axios.get('/api/cytoscape/books-summaries');
+
+                if (containerRef.current) {
+                    // Initialize cytoscape
+                    cyRef.current = cytoscape({
+                        container: containerRef.current,
+                        elements: response.data.elements,
+                        style: [
+                            {
+                                selector: 'node',
+                                style: {
+                                    'background-color': '#666',
+                                    'label': 'data(label)',
+                                    'text-valign': 'center',
+                                    'color': '#fff',
+                                    'text-outline-width': 2,
+                                    'text-outline-color': '#666',
+                                    'font-size': '12px'
+                                }
+                            },
+                            {
+                                selector: 'node.book',
+                                style: {
+                                    'background-color': '#4b7bec',
+                                    'shape': 'ellipse',
+                                    'text-outline-color': '#4b7bec'
+                                }
+                            },
+                            {
+                                selector: 'node.summary',
+                                style: {
+                                    'background-color': '#26de81',
+                                    'shape': 'roundrectangle',
+                                    'text-outline-color': '#26de81'
+                                }
+                            },
+                            {
+                                selector: 'edge',
+                                style: {
+                                    'width': 2,
+                                    'line-color': '#ccc',
+                                    'target-arrow-color': '#ccc',
+                                    'target-arrow-shape': 'triangle',
+                                    'curve-style': 'bezier',
+                                    'label': 'data(label)',
+                                    'font-size': '10px',
+                                    'color': '#777'
+                                }
+                            }
+                        ],
+                        layout: getLayoutConfig(layout)
+                    });
+
+                    // Add event listeners
+                    cyRef.current.on('tap', 'node', function(evt) {
+                        const node = evt.target;
+                        setSelectedNode(node.data());
+                    });
+
+                    // Add click handler for background to deselect
+                    cyRef.current.on('tap', function(evt) {
+                        if (evt.target === cyRef.current) {
+                            setSelectedNode(null);
+                        }
+                    });
+                }
+                setLoading(false);
+            } catch (error) {
+                console.error('Error fetching cytoscape data:', error);
+                setError('Failed to load graph data. Please check if the backend API is available.');
+                setLoading(false);
+            }
+        };
+
+        fetchData();
+
+        // Cleanup function
+        return () => {
+            if (cyRef.current) {
+                cyRef.current.destroy();
+            }
+        };
+    }, [layout]);
+
+    const getLayoutConfig = (layoutName) => {
+        switch(layoutName) {
+            case 'grid':
+                return {
+                    name: 'grid',
+                    padding: 30,
+                    avoidOverlap: true
+                };
+            case 'circle':
+                return {
+                    name: 'circle',
+                    padding: 30
+                };
+            case 'concentric':
+                return {
+                    name: 'concentric',
+                    concentric: function(node) {
+                        return node.data('type') === 'book' ? 2 : 1;
+                    },
+                    levelWidth: function() { return 1; },
+                    padding: 30
+                };
+            case 'breadthfirst':
+                return {
+                    name: 'breadthfirst',
+                    directed: true,
+                    padding: 30,
+                    spacingFactor: 1.5
+                };
+            case 'cose':
+            default:
+                return {
+                    name: 'cose',
+                    padding: 50,
+                    componentSpacing: 100,
+                    nodeRepulsion: 450000,
+                    nodeOverlap: 20,
+                    idealEdgeLength: 100,
+                    edgeElasticity: 100,
+                    nestingFactor: 5,
+                    gravity: 80,
+                    numIter: 1000,
+                    initialTemp: 200,
+                    coolingFactor: 0.95,
+                    minTemp: 1.0
+                };
+        }
+    };
+
+    const handleLayoutChange = (e) => {
+        setLayout(e.target.value);
+    };
+
+    const renderNodeDetails = () => {
+        if (!selectedNode) return null;
+
+        const details = selectedNode.details || {};
+
+        if (selectedNode.type === 'book') {
+            return (
+                <>
+                    <h3 className="text-lg font-medium">{selectedNode.label}</h3>
+                    <div className="mt-4 space-y-2">
+                        <p><span className="font-medium text-gray-700">Type:</span> Book</p>
+                        <p><span className="font-medium text-gray-700">Author:</span> {details.authorName}</p>
+                        <p><span className="font-medium text-gray-700">Published:</span> {details.publishYear}</p>
+                        <p><span className="font-medium text-gray-700">Rank:</span> {details.rank}</p>
+                    </div>
+                </>
+            );
+        } else if (selectedNode.type === 'summary') {
+            return (
+                <>
+                    <h3 className="text-lg font-medium">{selectedNode.label}</h3>
+                    <div className="mt-4 space-y-2">
+                        <p><span className="font-medium text-gray-700">Type:</span> Summary</p>
+                        <p><span className="font-medium text-gray-700">Model:</span> {details.modelName}</p>
+                        <p><span className="font-medium text-gray-700">Provider:</span> {details.modelProvider}</p>
+                        <p><span className="font-medium text-gray-700">Created:</span> {details.createdAt && new Date(details.createdAt).toLocaleString()}</p>
+                    </div>
+                    <div className="mt-4">
+                        <h4 className="font-medium text-gray-700">Summary:</h4>
+                        <p className="mt-2 text-gray-600 whitespace-pre-wrap">{details.summary}</p>
+                    </div>
+                </>
+            );
+        }
+
+        return (
+            <>
+                <h3 className="text-lg font-medium">{selectedNode.label}</h3>
+                <p className="mt-2"><span className="font-medium text-gray-700">Type:</span> {selectedNode.type}</p>
+            </>
+        );
+    };
+
+    if (loading) {
+        return (
+            <div className="card p-8 text-center">
+                <svg className="animate-spin h-8 w-8 mx-auto text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <p className="mt-2 text-gray-600">Loading graph data...</p>
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <div className="card p-8 text-center">
+                <div className="text-red-600 mb-4">{error}</div>
+                <button onClick={() => window.location.reload()} className="btn btn-primary">
+                    Try Again
+                </button>
+            </div>
+        );
+    }
+
+    return (
+        <div className="card">
+            <div className="card-header">
+                <h3 className="text-lg font-medium">Book-Summary Relationship Graph</h3>
+            </div>
+
+            <div className="p-4 border-b bg-gray-50">
+                <div className="flex items-center">
+                    <label className="mr-2 text-sm font-medium text-gray-700">Layout:</label>
+                    <select
+                        value={layout}
+                        onChange={handleLayoutChange}
+                        className="border rounded px-3 py-1 text-sm"
+                    >
+                        <option value="cose">Force-Directed (COSE)</option>
+                        <option value="grid">Grid</option>
+                        <option value="circle">Circle</option>
+                        <option value="concentric">Concentric</option>
+                        <option value="breadthfirst">Breadth-First</option>
+                    </select>
+
+                    <div className="ml-6 flex items-center">
+                        <div className="flex items-center mr-4">
+                            <div className="h-3 w-3 rounded-full bg-blue-500 mr-1"></div>
+                            <span className="text-xs text-gray-600">Books</span>
+                        </div>
+                        <div className="flex items-center">
+                            <div className="h-3 w-3 rounded bg-green-500 mr-1"></div>
+                            <span className="text-xs text-gray-600">Summaries</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div className="flex">
+                <div
+                    ref={containerRef}
+                    style={{ height: '600px' }}
+                    className={`${selectedNode ? 'w-2/3' : 'w-full'} border-r`}
+                />
+
+                {selectedNode && (
+                    <div className="w-1/3 p-4 overflow-y-auto" style={{ maxHeight: '600px' }}>
+                        {renderNodeDetails()}
+                        <button
+                            onClick={() => setSelectedNode(null)}
+                            className="mt-6 px-3 py-1 bg-gray-200 hover:bg-gray-300 rounded text-sm"
+                        >
+                            Close Details
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            <div className="p-4 border-t bg-gray-50 text-xs text-gray-500">
+                <p>Tip: Click on nodes to view details. Drag nodes to rearrange the graph. Use the mouse wheel to zoom.</p>
+            </div>
+        </div>
+    );
+};
+
+export default CytoscapePanel;
+
+-----------
+
+>>> ./frontend/src/ConfigurationsPanel.jsx
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+
+const ConfigurationsPanel = () => {
+    const [configs, setConfigs] = useState([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    useEffect(() => {
+        fetchConfigurations();
+    }, []);
+
+    const fetchConfigurations = async () => {
+        setIsLoading(true);
+        try {
+            const response = await axios.get('/api/model-configurations');
+            setConfigs(response.data);
+            setError(null);
+        } catch (err) {
+            console.error('Error loading configurations:', err);
+            setError('Failed to load model configurations.');
+        } finally {
+            setIsLoading(false);
+        }
+    };
+
+    // Format date to local string
+    const formatDate = (dateString) => {
+        if (!dateString) return '';
+        return new Date(dateString).toLocaleString();
+    };
+
+    // Get parameter value from the modelConfig JSON or show default value
+    const getParameterValue = (config, paramName) => {
+        if (!config || !config.modelConfig) return '-';
+        return config.modelConfig[paramName] !== undefined
+            ? config.modelConfig[paramName]
+            : '-';
+    };
+
+    return (
+        <div className="card">
+            <div className="card-header flex justify-between items-center">
+                <h3 className="text-lg font-medium">Model Configurations</h3>
+                <button
+                    onClick={fetchConfigurations}
+                    disabled={isLoading}
+                    className="btn btn-secondary text-sm"
+                >
+                    Refresh
+                </button>
+            </div>
+
+            {isLoading ? (
+                <div className="p-8 text-center">
+                    <svg className="animate-spin h-8 w-8 mx-auto text-blue-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <p className="mt-2 text-gray-600">Loading configurations...</p>
+                </div>
+            ) : error ? (
+                <div className="p-8 text-center text-red-600">
+                    <p>{error}</p>
+                    <button onClick={fetchConfigurations} className="mt-4 btn btn-primary">
+                        Try Again
+                    </button>
+                </div>
+            ) : configs.length === 0 ? (
+                <div className="p-8 text-center text-gray-600">
+                    <p>No model configurations available. Create a new configuration from the "Create Model Config" section.</p>
+                </div>
+            ) : (
+                <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                        <thead className="bg-gray-50">
+                        <tr>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Temperature</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Top P</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Max Tokens</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Comment</th>
+                        </tr>
+                        </thead>
+                        <tbody className="bg-white divide-y divide-gray-200">
+                        {configs.map((config, index) => (
+                            <tr key={config.id} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    <div>{config.modelName || 'Unknown'}</div>
+                                    <div className="text-xs text-gray-500">{config.modelProvider}</div>
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {getParameterValue(config, 'temperature')}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {getParameterValue(config, 'top_p')}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {getParameterValue(config, 'max_tokens')}
+                                </td>
+                                <td className="px-6 py-4 whitespace-nowrap">
+                                    {formatDate(config.createdAt)}
+                                </td>
+                                <td className="px-6 py-4">
+                                    {config.comment}
+                                </td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
+            )}
+        </div>
+    );
+};
+
+export default ConfigurationsPanel;
+
+-----------
+
+>>> ./backend/pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.4</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>net.sampsoftware</groupId>
+    <artifactId>genai</artifactId>
+    <version>0.0.1-SNAPSHOT</version>
+    <name>genai</name>
+    <description>GenAI bookstore</description>
+    <url/>
+    <licenses>
+        <license/>
+    </licenses>
+    <developers>
+        <developer/>
+    </developers>
+    <scm>
+        <connection/>
+        <developerConnection/>
+        <tag/>
+        <url/>
+    </scm>
+    <properties>
+        <java.version>21</java.version>
+        <spring-ai.version>1.0.0-M8</spring-ai.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <lombok.version>1.18.30</lombok.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestone Repository</name>
+            <url>https://repo.spring.io/milestone</url>
+        </repository>
+    </repositories>
+
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>        
+
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>1.5.5.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>1.5.5.Final</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-postgresml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.32</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>6.4.4.Final</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+            <exclusion>
+                <groupId>org.junit.vintage</groupId>
+                <artifactId>junit-vintage-engine</artifactId>
+            </exclusion>
+            </exclusions>
+        </dependency>
+
+
+
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.10.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok-mapstruct-binding</artifactId>
+            <version>0.2.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Testcontainers -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+
+
+
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>1.19.1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.1.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.10.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <compilerArg>-Amapstruct.defaultComponentModel=spring</compilerArg>
+                        <compilerArg>-Amapstruct.verbose=true</compilerArg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+-----------
+
+>>> ./backend/run.sh
+#!/bin/bash
+set -eo pipefail
+IFS=$'\n\t'
+
+set -a
+source ../.env
+set +a
+
+set -x
+
+./mvnw clean package -DskipTests
+./mvnw $1 $2 $3 $4
+
+-----------
+
+>>> ./docker/postgres/init/02-create_database.sh
+#!/bin/bash
+
+set -e
+
+APP_DATABASE=${APP_DATABASE:-bookstore}
+POSTGRES_APP_USER=${POSTGRES_APP_USER:-genai}
+POSTGRES_APP_PASSWORD=${POSTGRES_APP_PASSWORD:-genai}
+
+SCRIPT_DIR="$(dirname "$0")"
+SUBSCRIPTS_DIR="${SCRIPT_DIR}/subscripts"
+
+echo "Checking for database '$APP_DATABASE'..."
+
+# Check if database exists - using standard variable interpolation
+db_exists=$(psql -U "$POSTGRES_USER" -d "postgres" -t -c "SELECT 1 FROM pg_database WHERE datname = '$APP_DATABASE';")
+db_exists=$(echo "$db_exists" | tr -d ' ')
+
+# Check if the variable has content
+if [ -n "$db_exists" ]; then
+  echo "Database '$APP_DATABASE' already exists."
+else
+  echo "Creating database '$APP_DATABASE'..."
+  psql -U "$POSTGRES_USER" -d "postgres" -c "CREATE DATABASE \"$APP_DATABASE\";"
+
+  # Check if user already exists before creating
+  user_exists=$(psql -U "$POSTGRES_USER" -d "postgres" -t -c "SELECT 1 FROM pg_roles WHERE rolname = '$POSTGRES_APP_USER';")
+  user_exists=$(echo "$user_exists" | tr -d ' ')
+
+  if [ -n "$user_exists" ]; then
+    echo "User '$POSTGRES_APP_USER' already exists."
+  else
+    echo "Creating user '$POSTGRES_APP_USER'..."
+    psql -U "$POSTGRES_USER" -d "postgres" -c "CREATE USER \"$POSTGRES_APP_USER\" WITH PASSWORD '$POSTGRES_APP_PASSWORD';"
+  fi
+
+  echo "Creating schema..."
+  psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "${SUBSCRIPTS_DIR}/schema.sql"
+
+  echo "Granting privileges to '$POSTGRES_APP_USER'..."
+  psql -U "$POSTGRES_USER" -d "postgres" -c "GRANT ALL PRIVILEGES ON DATABASE \"$APP_DATABASE\" TO \"$POSTGRES_APP_USER\";"
+
+  psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -c "
+    GRANT ALL PRIVILEGES ON SCHEMA public TO \"$POSTGRES_APP_USER\";
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO \"$POSTGRES_APP_USER\";
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO \"$POSTGRES_APP_USER\";
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON FUNCTIONS TO \"$POSTGRES_APP_USER\";
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO \"$POSTGRES_APP_USER\";
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO \"$POSTGRES_APP_USER\";
+    GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO \"$POSTGRES_APP_USER\";
+  "
+  echo "Database initialization complete!"
+fi
+
+-----------
+
+>>> ./docker/postgres/init/03-load_data.sh
+#!/bin/bash
+
+set -e
+
+APP_DATABASE=${APP_DATABASE:-bookstore}
+
+SCRIPT_DIR="$(dirname "$0")"
+SUBSCRIPTS_DIR="${SCRIPT_DIR}/subscripts"
+
+echo "Loading data if table empty..."
+load_table_data() {
+  local table_name="$1"
+  local count=$(psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -t -c "SELECT COUNT(*) FROM $table_name;")
+  count=$(echo "$count" | tr -d ' ')
+
+  if [ "$count" -gt "0" ]; then
+    echo "$table_name already loaded."
+  else
+    echo "Loading $table_name..."
+    psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "${SUBSCRIPTS_DIR}/${table_name}.sql"
+    echo "$table_name loaded."
+  fi
+}
+
+load_table_data model
+load_table_data model_parameter
+load_table_data model_configuration
+load_table_data book_rank_source
+load_table_data ranked_books
+
+echo "Done!"
+
+-----------
+
+>>> ./backend/src/main/resources/application.yml
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-3.5-turbo
+
+  application:
+    name: genai
+
+
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/bookstore
+    username: genai
+    password: genai
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+
+  sql:
+    init:
+      mode: always
+      schema-location: classpath:/schema.sql
+
+
+logging:
+  level:
+    '[org.springframework.ai]': INFO
+    '[org.springframework.boot.autoconfigure]': INFO
+    '[org.springframework.web]': INFO
+    '[org.springframework.web.filter.CommonsRequestLoggingFilter]': DEBUG
+    '[net.sampsoftware.genai]': DEBUG
+    '[net.sampsoftware.genai.controller]': TRACE
+
+server:
+  port: 8080
+
+-----------
+
+>>> ./backend/src/test/resources/application.yml
+spring:
+  ai:
+    openai:
+      api-key: testkey
+      chat:
+        options:
+          model: gpt-3.5-turbo
+
+  datasource:
+    url: jdbc:tc:postgresql:15:///testdb
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    username: test
+    password: test
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+-----------
+
+>>> ./docker/docker-compose.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: genai-bookstore-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - /mnt/c/Users/cgs12/IdeaProjects/genai-bookstore/docker/postgres/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgres} -d bookstore"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - genai-network
+
+volumes:
+  postgres-data:
+    name: genai-bookstore-postgres-data
+
+
+networks:
+  genai-network:
+    name: genai-network
+    driver: bridge
+
+-----------
+
+>>> ./frontend/package.json
+{
+  "name": "frontend",
+  "version": "0.1.0",
+  "private": true,
+  "dependencies": {
+    "@testing-library/dom": "^9.3.3",
+    "@testing-library/jest-dom": "^6.1.5",
+    "@testing-library/react": "^14.1.2",
+    "@testing-library/user-event": "^14.5.1",
+    "axios": "^1.6.2",
+    "cytoscape": "^3.28.1",
+    "lucide-react": "^0.294.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
+    "react-router-dom": "^6.20.1",
+    "react-scripts": "^5.0.1",
+    "web-vitals": "^2.1.4"
+  },
+  "devDependencies": {
+    "@tailwindcss/forms": "^0.5.7",
+    "autoprefixer": "^10.4.16",
+    "postcss": "^8.4.32",
+    "postcss-preset-env": "^9.3.0",
+    "tailwindcss": "^3.3.6"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test",
+    "eject": "react-scripts eject",
+    "lint": "eslint src/**/*.{js,jsx}",
+    "lint:fix": "eslint --fix src/**/*.{js,jsx}"
+  },
+  "eslintConfig": {
+    "extends": [
+      "react-app",
+      "react-app/jest"
+    ]
+  },
+  "browserslist": {
+    "production": [
+      ">0.2%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "proxy": "http://localhost:8080",
+  "engines": {
+    "node": ">=14.0.0",
+    "npm": ">=6.0.0"
+  }
+}
+
+-----------
+
+>>> ./frontend/public/manifest.json
+{
+  "short_name": "React App",
+  "name": "Create React App Sample",
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#ffffff"
+}
+
+-----------
+
+>>> ./package.json
+{
+  "dependencies": {
+    "@tailwindcss/forms": "^0.5.10",
+    "axios": "^1.9.0",
+    "install": "^0.13.0",
+    "lucide-react": "^0.511.0",
+    "npm": "^11.4.0",
+    "react-router-dom": "^7.6.0",
+    "tailwindcss": "^4.1.7"
+  }
+}
+
+-----------
+
+>>> ./docker/postgres/init/archive/book_rank_source.sql
+INSERT INTO book_rank_source (org_name, publish_date) VALUES ('New York Times','2024-07-08') RETURNING id;
+
+-----------
+
+>>> ./docker/postgres/init/archive/model_configuration.sql
+-- SQL script with properly escaped apostrophes
+
+-- First, ensure we have the models
+INSERT INTO model (model_name, model_provider, model_api_url, comment) 
+SELECT 'gpt-3.5-turbo', 'OpenAI', 'https://api.openai.com/v1', 'GPT-3.5 Turbo model'
+WHERE NOT EXISTS (SELECT 1 FROM model WHERE model_name = 'gpt-3.5-turbo');
+
+INSERT INTO model (model_name, model_provider, model_api_url, comment) 
+SELECT 'gpt-4', 'OpenAI', 'https://api.openai.com/v1', 'GPT-4 model'
+WHERE NOT EXISTS (SELECT 1 FROM model WHERE model_name = 'gpt-4');
+
+-- Get model IDs for insertion
+DO $$
+DECLARE
+    gpt35_id bigint;
+    gpt4_id bigint;
+BEGIN
+    SELECT id INTO gpt35_id FROM model WHERE model_name = 'gpt-3.5-turbo';
+    SELECT id INTO gpt4_id FROM model WHERE model_name = 'gpt-4';
+    
+    -- Common parameters for GPT-3.5 Turbo
+    -- Temperature
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'temperature', 
+           'Controls randomness in token selection. Lower values make output more deterministic and focused (0 is deterministic), higher values make output more random and creative.', 
+           'number', '0.0', '2.0', '0.7', 1
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'temperature');
+
+    -- Top_p
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'top_p', 
+           'Controls diversity via nucleus sampling. The model considers tokens with top_p probability mass. 0.1 means only the tokens comprising the top 10% probability are considered.', 
+           'number', '0.0', '1.0', '1.0', 2
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'top_p');
+
+    -- Max_tokens
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'max_tokens', 
+           'Maximum number of tokens to generate. The total length of input tokens and output tokens is limited by the model context length.', 
+           'integer', '1', '4096', '1024', 3
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'max_tokens');
+
+    -- Frequency_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'frequency_penalty', 
+           'Reduces repetition by penalizing tokens based on how frequently they''ve appeared in the text so far. Higher values decrease repetition.', 
+           'number', '-2.0', '2.0', '0.0', 4
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'frequency_penalty');
+
+    -- Presence_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'presence_penalty', 
+           'Reduces repetition by penalizing tokens that have appeared at all in the text so far. Higher values increase the model''s likelihood to talk about new topics.', 
+           'number', '-2.0', '2.0', '0.0', 5
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'presence_penalty');
+
+    -- Common parameters for GPT-4
+    -- Temperature
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'temperature', 
+           'Controls randomness in token selection. Lower values make output more deterministic and focused (0 is deterministic), higher values make output more random and creative.', 
+           'number', '0.0', '2.0', '0.7', 1
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'temperature');
+
+    -- Top_p
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'top_p', 
+           'Controls diversity via nucleus sampling. The model considers tokens with top_p probability mass. 0.1 means only the tokens comprising the top 10% probability are considered.', 
+           'number', '0.0', '1.0', '1.0', 2
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'top_p');
+
+    -- Max_tokens
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'max_tokens', 
+           'Maximum number of tokens to generate. The total length of input tokens and output tokens is limited by the model context length.', 
+           'integer', '1', '8192', '1500', 3
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'max_tokens');
+
+    -- Frequency_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'frequency_penalty', 
+           'Reduces repetition by penalizing tokens based on how frequently they''ve appeared in the text so far. Higher values decrease repetition.', 
+           'number', '-2.0', '2.0', '0.0', 4
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'frequency_penalty');
+
+    -- Presence_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'presence_penalty', 
+           'Reduces repetition by penalizing tokens that have appeared at all in the text so far. Higher values increase the model''s likelihood to talk about new topics.', 
+           'number', '-2.0', '2.0', '0.0', 5
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'presence_penalty');
+END $$;
+-----------
+
+>>> ./docker/postgres/init/archive/test_data.sql
+insert into model (model_name, model_provider, model_api_url, comment) values ('Test model', 'Model Test Inc', 'https://example.com/api','This is here to test things.') returning id;
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES (
+  1,
+  '{"temperature": 0.7, "max_tokens": 150, "top_p": 0.9}',
+  'Sample config for testing',
+  now()
+);
+insert into entity_summary (model_configuration_id, entity, entity_id, summary, created_at)
+values (
+1, 'ranked_books',3,'This book was less than wonderful.',now()
+);
+insert into entity_summary (model_configuration_id, entity, entity_id, summary, created_at)
+values (
+1, 'ranked_books',3,'I thought it was okay.',now()
+);
+
+-----------
+
+>>> ./docker/postgres/init/archive/top100of21st.sql
+INSERT INTO book_rank_source (org_name, publish_date) VALUES ('New York Times','2024-07-08') RETURNING id;
+
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,1,'My Brilliant Friend','Elena Ferrante',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,2,'The Warmth of Other Suns','Isabel Wilkerson',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,3,'Wolf Hall','Hilary Mantel',2009);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,4,'The Known World','Edward P. Jones',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,5,'The Corrections','Jonathan Franzen',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,6,'2666','Roberto Bolaño',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,7,'The Underground Railroad','Colson Whitehead',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,8,'Austerlitz','W.G. Sebald',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,9,'Never Let Me Go','Kazuo Ishiguro',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,10,'Gilead','Marilynne Robinson',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,11,'The Brief Wondrous Life of Oscar Wao','Junot Díaz',2007);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,12,'The publish_year of Magical Thinking','Joan Didion',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,13,'The Road','Cormac McCarthy',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,14,'Outline','Rachel Cusk',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,15,'Pachinko','Min Jin Lee',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,16,'The Amazing Adventures of Kavalier & Clay','Michael Chabon',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,17,'The Sellout','Paul Beatty',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,18,'Lincoln in the Bardo','George Saunders',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,19,'Say Nothing','Patrick Radden Keefe',2019);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,20,'Erasure','Percival Everett',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,21,'Evicted','Matthew Desmond',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,22,'Behind the Beautiful Forevers','Katherine Boo',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,23,'Hateship, Friendship, Courtship, Loveship, Marriage','Alice Munro',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,24,'The Overstory','Richard Powers',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,25,'Random Family','Adrian Nicole LeBlanc',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,26,'Atonement','Ian McEwan',2002);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,27,'Americanah','Chimamanda Ngozi Adichie',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,28,'Cloud Atlas','David Mitchell',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,29,'The Last Samurai','Helen DeWitt',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,30,'Sing, Unburied, Sing','Jesmyn Ward',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,31,'White Teeth','Zadie Smith',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,32,'The Line of Beauty','Alan Hollinghurst',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,33,'Salvage the Bones','Jesmyn Ward',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,34,'Citizen','Claudia Rankine',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,35,'Fun Home','Alison Bechdel',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,36,'Between the World and Me','Ta-Nehisi Coates',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,37,'The publish_years','Annie Ernaux',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,38,'The Savage Detectives','Roberto Bolaño',2007);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,39,'A Visit From the Goon Squad','Jennifer Egan',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,40,'H Is for Hawk','Helen Macdonald',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,41,'Small Things Like These','Claire Keegan',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,42,'A Brief History of Seven Killings','Marlon James',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,43,'Postwar','Tony Judt',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,44,'The Fifth Season','N. K. Jemisin',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,45,'The Argonauts','Maggie Nelson',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,46,'The Goldfinch','Donna Tartt',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,47,'A Mercy','Toni Morrison',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,48,'Persepolis','Marjane Satrapi',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,49,'The Vegetarian','Han Kang',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,50,'Trust','Hernan Diaz',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,51,'Life After Life','Kate Atkinson',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,52,'Train Dreams','Denis Johnson',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,53,'Runaway','Alice Munro',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,54,'Tenth of December','George Saunders',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,55,'The Looming Tower','Lawrence Wright',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,56,'The Flamethrowers','Rachel Kushner',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,57,'Nickel and Dimed','Barbara Ehrenreich',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,58,'Stay True','Hua Hsu',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,59,'Middlesex','Jeffrey Eugenides',2002);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,60,'Heavy','Kiese Laymon',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,61,'Demon Copperhead','Barbara Kingsolver',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,62,'10:04','Ben Lerner',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,63,'Veronica','Mary Gaitskill',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,64,'The Great Believers','Rebecca Makkai',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,65,'The Plot Against America','Philip Roth',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,66,'We the Animals','Justin Torres',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,67,'Far From the Tree','Andrew Solomon',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,68,'The Friend','Sigrid Nunez',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,69,'The New Jim Crow','Michelle Alexander',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,70,'All Aunt Hagar''s Children','Edward P. Jones',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,71,'The Copenhagen Trilogy','Tove Ditlevsen',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,72,'Secondhand Time','Svetlana Alexievich',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,73,'The Passage of Power','Robert Caro',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,74,'Olive Kitteridge','Elizabeth Strout',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,75,'Exit West','Mohsin Hamid',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,76,'Tomorrow, and Tomorrow, and Tomorrow','Gabrielle Zevin',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,77,'An American Marriage','Tayari Jones',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,78,'Septology','Jon Fosse',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,79,'A Manual for Cleaning Women','Lucia Berlin',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,80,'The Story of the Lost Child','Elena Ferrante',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,81,'Pulphead','John Jeremiah Sullivan',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,82,'Hurricane Season','Fernanda Melchor',2020);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,83,'When We Cease to Understand the World','Benjamín Labatut',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,84,'The Emperor of All Maladies','Siddhartha Mukherjee',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,85,'Pastoralia','George Saunders',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,86,'Frederick Douglass','David W. Blight',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,87,'Detransition, Baby','Torrey Peters',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,88,'The Collected Stories of Lydia Davis','Lydia Davis',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,89,'The Return','Hisham Matar',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,90,'The Sympathizer','Viet Thanh Nguyen',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,91,'The Human Stain','Philip Roth',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,92,'The Days of Abandonment','Elena Ferrante',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,93,'Station Eleven','Emily St. John Mandel',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,94,'On Beauty','Zadie Smith',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,95,'Bring Up the Bodies','Hilary Mantel',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,96,'Wayward Lives, Beautiful Experiments','Saidiya Hartman',2019);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,97,'Men We Reaped','Jesmyn Ward',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,98,'Bel Canto','Ann Patchett',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,99,'How to Be Both','Ali Smith',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,100,'Tree of Smoke','Denis Johnson',2007);
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/book_rank_source.sql
+INSERT INTO book_rank_source (id, org_name, publish_date) VALUES (1,'New York Times','2024-07-08') RETURNING id;
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/model.sql
+INSERT INTO model (model_name, model_provider, model_api_url, comment)
+VALUES
+    ('GPT-3.5-Turbo', 'OpenAI', 'https://api.openai.com/v1/chat/completions', 'General purpose model, good balance of capabilities and cost'),
+    ('GPT-4o', 'OpenAI', 'https://api.openai.com/v1/chat/completions', 'Advanced model with strong reasoning and instruction-following'),
+    ('Claude 3 Opus', 'Anthropic', 'https://api.anthropic.com/v1/messages', 'Anthropic''s most capable model for complex tasks'),
+    ('Claude 3 Sonnet', 'Anthropic', 'https://api.anthropic.com/v1/messages', 'Balanced performance and cost for most use cases'),
+    ('Llama-3-70b', 'Meta', 'https://api.together.xyz/v1/completions', 'Open source model with strong general capabilities');
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/model_configuration.sql
+
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'),
+        '{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.95}',
+        'Default configuration for general usage',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'),
+        '{"temperature": 0.2, "max_tokens": 2048, "top_p": 0.9, "frequency_penalty": 0.5}',
+        'More deterministic output, good for factual responses',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'),
+        '{"temperature": 1.2, "max_tokens": 500, "top_p": 1.0, "presence_penalty": 0.6}',
+        'Creative configuration for brainstorming and idea generation',
+        NOW()
+    );
+
+-- GPT-4o configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-4o'),
+        '{"temperature": 0.7, "max_tokens": 1500, "top_p": 0.95}',
+        'Default configuration for balanced performance',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-4o'),
+        '{"temperature": 0.1, "max_tokens": 4000, "top_p": 0.8}',
+        'Academic configuration optimized for detailed explanations',
+        NOW()
+    );
+
+-- Claude 3 Opus configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'Claude 3 Opus'),
+        '{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}',
+        'Balanced configuration for general usage',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'Claude 3 Opus'),
+        '{"temperature": 0.3, "max_tokens": 2000, "top_p": 0.85, "top_k": 40}',
+        'Precise configuration for technical content',
+        NOW()
+    );
+
+-- Claude 3 Sonnet configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'),
+        '{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}',
+        'Default configuration for everyday use',
+        NOW()
+    );
+
+-- Llama-3-70b configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'Llama-3-70b'),
+        '{"temperature": 0.8, "max_tokens": 1024, "top_p": 0.9, "repetition_penalty": 1.1}',
+        'Default open source model configuration',
+        NOW()
+    );
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/model_parameter.sql
+-- GPT-3.5-Turbo parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'temperature', 'Controls randomness: Lowering results in less random completions', 'float', '0', '2', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'max_tokens', 'The maximum number of tokens in the response', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'top_p', 'Controls diversity via nucleus sampling', 'float', '0', '1', '0.95', 3),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'presence_penalty', 'Penalizes repeated tokens', 'float', '-2', '2', '0', 4),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'frequency_penalty', 'Penalizes frequent tokens', 'float', '-2', '2', '0', 5);
+
+-- GPT-4o parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'temperature', 'Controls randomness: Lowering results in less random completions', 'float', '0', '2', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'max_tokens', 'The maximum number of tokens in the response', 'integer', '1', '8192', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'top_p', 'Controls diversity via nucleus sampling', 'float', '0', '1', '0.95', 3),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'presence_penalty', 'Penalizes repeated tokens', 'float', '-2', '2', '0', 4),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'frequency_penalty', 'Penalizes frequent tokens', 'float', '-2', '2', '0', 5);
+
+-- Claude 3 Opus parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'temperature', 'Controls randomness in generation', 'float', '0', '1', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'max_tokens', 'Maximum tokens to generate', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'top_p', 'Nucleus sampling parameter', 'float', '0', '1', '0.9', 3),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'top_k', 'Limits vocabulary to top K tokens', 'integer', '1', '500', '50', 4);
+
+-- Claude 3 Sonnet parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'temperature', 'Controls randomness in generation', 'float', '0', '1', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'max_tokens', 'Maximum tokens to generate', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'top_p', 'Nucleus sampling parameter', 'float', '0', '1', '0.9', 3),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'top_k', 'Limits vocabulary to top K tokens', 'integer', '1', '500', '50', 4);
+
+-- Llama-3-70b parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'temperature', 'Controls randomness', 'float', '0', '2', '0.8', 1),
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'max_tokens', 'Maximum tokens to generate', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'top_p', 'Nucleus sampling parameter', 'float', '0', '1', '0.9', 3),
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'repetition_penalty', 'Penalizes repetition', 'float', '1', '2', '1.1', 4);
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/ranked_books.sql
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,1,'My Brilliant Friend','Elena Ferrante',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,2,'The Warmth of Other Suns','Isabel Wilkerson',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,3,'Wolf Hall','Hilary Mantel',2009);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,4,'The Known World','Edward P. Jones',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,5,'The Corrections','Jonathan Franzen',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,6,'2666','Roberto Bolaño',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,7,'The Underground Railroad','Colson Whitehead',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,8,'Austerlitz','W.G. Sebald',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,9,'Never Let Me Go','Kazuo Ishiguro',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,10,'Gilead','Marilynne Robinson',2004);
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/schema.sql
+
+CREATE SEQUENCE IF NOT EXISTS messages_id_seq;
+CREATE SEQUENCE IF NOT EXISTS book_rank_source_id_seq;
+CREATE SEQUENCE IF NOT EXISTS ranked_books_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_configuration_id_seq;
+CREATE SEQUENCE IF NOT EXISTS entity_summary_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_parameter_id_seq;
+
+CREATE TABLE IF NOT EXISTS public.messages
+(
+    id bigint NOT NULL DEFAULT nextval('messages_id_seq'::regclass),
+    content text COLLATE pg_catalog."default",
+    created_at timestamp with time zone,
+    CONSTRAINT messages_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS public.book_rank_source
+(
+    id bigint NOT NULL DEFAULT nextval('book_rank_source_id_seq'::regclass),
+    org_name character varying(200) COLLATE pg_catalog."default",
+    publish_date date,
+    CONSTRAINT book_rank_source_pkey PRIMARY KEY (id)
+);
+
+
+CREATE TABLE IF NOT EXISTS public.ranked_books
+(
+    id bigint NOT NULL DEFAULT nextval('ranked_books_id_seq'::regclass),
+    list_id bigint,
+    rank integer,
+    title character varying(200) COLLATE pg_catalog."default",
+    author_name character varying(200) COLLATE pg_catalog."default",
+    publish_year character varying(10) COLLATE pg_catalog."default",
+    CONSTRAINT ranked_books_pkey PRIMARY KEY (id),
+    CONSTRAINT ranked_books_list_id_fkey FOREIGN KEY (list_id)
+        REFERENCES public.book_rank_source (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE TABLE IF NOT EXISTS public.model
+(
+    id bigint NOT NULL DEFAULT nextval('model_id_seq'::regclass),
+    model_name character varying(200) COLLATE pg_catalog."default",
+    model_provider character varying(200) COLLATE pg_catalog."default",
+    model_api_url character varying(200) COLLATE pg_catalog."default",
+    comment text COLLATE pg_catalog."default",
+    CONSTRAINT model_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS public.model_configuration
+(
+    id bigint NOT NULL DEFAULT nextval('model_configuration_id_seq'::regclass),
+    model_id bigint,
+    model_config jsonb,
+    comment text COLLATE pg_catalog."default",
+    created_at timestamp with time zone,
+    CONSTRAINT model_configuration_pkey PRIMARY KEY (id),
+    CONSTRAINT model_configuration_model_id_fkey FOREIGN KEY (model_id)
+        REFERENCES public.model (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+
+CREATE TABLE IF NOT EXISTS public.entity_summary
+(
+    id bigint NOT NULL DEFAULT nextval('entity_summary_id_seq'::regclass),
+    model_configuration_id bigint,
+    type character varying(200) COLLATE pg_catalog."default",
+    entity_id bigint,
+    summary text COLLATE pg_catalog."default",
+    created_at timestamp with time zone,
+    batch_id bigint,
+    CONSTRAINT entity_summary_pkey PRIMARY KEY (id),
+    CONSTRAINT entity_summary_model_configuration_id_fkey FOREIGN KEY (model_configuration_id)
+        REFERENCES public.model_configuration (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE TABLE IF NOT EXISTS public.model_parameter
+(
+    id bigint NOT NULL DEFAULT nextval('model_parameter_id_seq'::regclass),
+    model_id bigint NOT NULL,
+    param_name character varying(100) COLLATE pg_catalog."default" NOT NULL,
+    description text COLLATE pg_catalog."default",
+    data_type character varying(50) COLLATE pg_catalog."default",
+    min_value character varying(50) COLLATE pg_catalog."default",
+    max_value character varying(50) COLLATE pg_catalog."default", 
+    default_value character varying(100) COLLATE pg_catalog."default",
+    display_order integer,
+    CONSTRAINT model_parameter_pkey PRIMARY KEY (id),
+    CONSTRAINT model_parameter_model_id_fkey FOREIGN KEY (model_id)
+        REFERENCES public.model (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE,
+    CONSTRAINT model_parameter_model_id_param_name_key UNIQUE (model_id, param_name)
+);
+
+-----------
+
+>>> ./backend/.mvn/wrapper/MavenWrapperDownloader.java
+/*
+ * Copyright 2007-present the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import java.net.*;
+import java.io.*;
+import java.nio.channels.*;
+import java.util.Properties;
+
+public class MavenWrapperDownloader {
+
+    private static final String WRAPPER_VERSION = "0.5.6";
+    /**
+     * Default URL to download the maven-wrapper.jar from, if no 'downloadUrl' is provided.
+     */
+    private static final String DEFAULT_DOWNLOAD_URL = "https://repo.maven.apache.org/maven2/io/takari/maven-wrapper/"
+        + WRAPPER_VERSION + "/maven-wrapper-" + WRAPPER_VERSION + ".jar";
+
+    /**
+     * Path to the maven-wrapper.properties file, which might contain a downloadUrl property to
+     * use instead of the default one.
+     */
+    private static final String MAVEN_WRAPPER_PROPERTIES_PATH =
+            ".mvn/wrapper/maven-wrapper.properties";
+
+    /**
+     * Path where the maven-wrapper.jar will be saved to.
+     */
+    private static final String MAVEN_WRAPPER_JAR_PATH =
+            ".mvn/wrapper/maven-wrapper.jar";
+
+    /**
+     * Name of the property which should be used to override the default download url for the wrapper.
+     */
+    private static final String PROPERTY_NAME_WRAPPER_URL = "wrapperUrl";
+
+    public static void main(String args[]) {
+        System.out.println("- Downloader started");
+        File baseDirectory = new File(args[0]);
+        System.out.println("- Using base directory: " + baseDirectory.getAbsolutePath());
+
+        // If the maven-wrapper.properties exists, read it and check if it contains a custom
+        // wrapperUrl parameter.
+        File mavenWrapperPropertyFile = new File(baseDirectory, MAVEN_WRAPPER_PROPERTIES_PATH);
+        String url = DEFAULT_DOWNLOAD_URL;
+        if(mavenWrapperPropertyFile.exists()) {
+            FileInputStream mavenWrapperPropertyFileInputStream = null;
+            try {
+                mavenWrapperPropertyFileInputStream = new FileInputStream(mavenWrapperPropertyFile);
+                Properties mavenWrapperProperties = new Properties();
+                mavenWrapperProperties.load(mavenWrapperPropertyFileInputStream);
+                url = mavenWrapperProperties.getProperty(PROPERTY_NAME_WRAPPER_URL, url);
+            } catch (IOException e) {
+                System.out.println("- ERROR loading '" + MAVEN_WRAPPER_PROPERTIES_PATH + "'");
+            } finally {
+                try {
+                    if(mavenWrapperPropertyFileInputStream != null) {
+                        mavenWrapperPropertyFileInputStream.close();
+                    }
+                } catch (IOException e) {
+                    // Ignore ...
+                }
+            }
+        }
+        System.out.println("- Downloading from: " + url);
+
+        File outputFile = new File(baseDirectory.getAbsolutePath(), MAVEN_WRAPPER_JAR_PATH);
+        if(!outputFile.getParentFile().exists()) {
+            if(!outputFile.getParentFile().mkdirs()) {
+                System.out.println(
+                        "- ERROR creating output directory '" + outputFile.getParentFile().getAbsolutePath() + "'");
+            }
+        }
+        System.out.println("- Downloading to: " + outputFile.getAbsolutePath());
+        try {
+            downloadFileFromURL(url, outputFile);
+            System.out.println("Done");
+            System.exit(0);
+        } catch (Throwable e) {
+            System.out.println("- Error downloading");
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
+    private static void downloadFileFromURL(String urlString, File destination) throws Exception {
+        if (System.getenv("MVNW_USERNAME") != null && System.getenv("MVNW_PASSWORD") != null) {
+            String username = System.getenv("MVNW_USERNAME");
+            char[] password = System.getenv("MVNW_PASSWORD").toCharArray();
+            Authenticator.setDefault(new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(username, password);
+                }
+            });
+        }
+        URL website = new URL(urlString);
+        ReadableByteChannel rbc;
+        rbc = Channels.newChannel(website.openStream());
+        FileOutputStream fos = new FileOutputStream(destination);
+        fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+        fos.close();
+        rbc.close();
+    }
+
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/config/AsyncConfig.java
+package net.sampsoftware.genai.config;
+
+import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
+import org.springframework.aop.interceptor.SimpleAsyncUncaughtExceptionHandler;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.AsyncConfigurer;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
+
+@Configuration
+@EnableAsync
+public class AsyncConfig implements AsyncConfigurer {
+
+    @Override
+    public Executor getAsyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(25);
+        executor.setThreadNamePrefix("book-processor-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Override
+    public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+        return new SimpleAsyncUncaughtExceptionHandler();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/config/WebConfig.java
+package net.sampsoftware.genai.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.filter.CommonsRequestLoggingFilter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+    @SuppressWarnings("null")
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOrigins("http://localhost:3000")
+                .allowedMethods("*")
+                .allowedHeaders("*");
+    }
+    
+    @Bean
+    public CommonsRequestLoggingFilter requestLoggingFilter() {
+        CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter();
+        filter.setIncludeQueryString(true);
+        filter.setIncludePayload(true);
+        filter.setMaxPayloadLength(10000);
+        filter.setBeforeMessagePrefix("REQUEST DATA : ");
+        filter.setAfterMessagePrefix("RESPONSE DATA : ");
+        return filter;
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/BatchSummaryController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.BatchSummaryRequest;
+import net.sampsoftware.genai.service.AsyncBookSummaryService;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/batch-summary")
+@RequiredArgsConstructor
+public class BatchSummaryController {
+
+    private final AsyncBookSummaryService aiService;
+
+    @PostMapping
+    public ResponseEntity<?> generateSummaries(@RequestBody BatchSummaryRequest request) {
+        return ResponseEntity.ok(aiService.generateResponse(request.prompt(), request.modelConfigurationId()));
+
+    }
+
+    // Error response DTO
+    record ErrorResponse(String error, String message) {}
+
+
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/BookRankSourceController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.model.BookRankSource;
+import net.sampsoftware.genai.repository.BookRankSourceRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/sources")
+public class BookRankSourceController {
+    private final BookRankSourceRepository repo;
+    public BookRankSourceController(BookRankSourceRepository repo) { this.repo = repo; }
+
+    @GetMapping public List<BookRankSource> all() { return repo.findAll(); }
+    @GetMapping("/{id}") public BookRankSource one(@PathVariable Long id) { return repo.findById(id).orElseThrow(); }
+    @PostMapping public BookRankSource create(@RequestBody BookRankSource s) { return repo.save(s); }
+    @PutMapping("/{id}") public BookRankSource update(@PathVariable Long id, @RequestBody BookRankSource s) {
+        s.setId(id); return repo.save(s);
+    }
+    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { repo.deleteById(id); }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ChatController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.dto.ChatRequest;
+import net.sampsoftware.genai.dto.ChatResponse;
+import net.sampsoftware.genai.service.ChatService;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/chat")
+public class ChatController {
+
+    private final ChatService chatService;
+    public ChatController(ChatService chatService) {
+        this.chatService = chatService;
+    }
+
+    @PostMapping
+    public ChatResponse chat(@RequestBody ChatRequest request) {
+        String reply = chatService.chat(request.getContent());
+        return new ChatResponse(reply);
+    }
+
+}
+
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/CrudDtoController.java
+package net.sampsoftware.genai.controller;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+public abstract class CrudDtoController<T, D, ID> {
+
+    protected abstract JpaRepository<T, ID> getRepository();
+    protected abstract D toDto(T entity);
+    protected abstract T toEntity(D dto);
+
+    @GetMapping
+    public List<D> list() {
+        return getRepository().findAll().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<D> get(@PathVariable ID id) {
+        Optional<T> result = getRepository().findById(id);
+        return result.map(t -> ResponseEntity.ok(toDto(t)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<D> create(@RequestBody D dto) {
+        T saved = getRepository().save(toEntity(dto));
+        return ResponseEntity.ok(toDto(saved));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<D> update(@PathVariable ID id, @RequestBody D dto) {
+        if (!getRepository().existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        T updated = toEntity(dto);
+        return ResponseEntity.ok(toDto(getRepository().save(updated)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable ID id) {
+        if (!getRepository().existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        getRepository().deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/CytoscapeController.java
+
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.CytoscapeDto;
+import net.sampsoftware.genai.service.CytoscapeService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/cytoscape")
+@RequiredArgsConstructor
+public class CytoscapeController {
+
+    private final CytoscapeService cytoscapeService;
+
+    @GetMapping("/books-summaries")
+    public CytoscapeDto getBooksSummariesGraph() {
+        return cytoscapeService.getBooksSummariesGraph();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/EntitySummaryController.java
+// Controller
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.dto.EntitySummaryDto;
+import net.sampsoftware.genai.service.EntitySummaryService;
+
+import org.springframework.web.bind.annotation.*;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/summaries")
+@RequiredArgsConstructor
+public class EntitySummaryController {
+
+    private final EntitySummaryService entitySummaryService;
+
+    @GetMapping
+    public List<EntitySummaryDto> getSummaries(
+        @RequestParam String entity,
+        @RequestParam List<Long> entityIds
+    ) {
+        List<String> types = entitySummaryService.findAllTypes();
+        log.debug("Found types in database: {}", types);
+
+        log.debug("Type, ID: {}, {}", entity, entityIds);
+        List<EntitySummaryDto> summaries = entitySummaryService.findByTypeAndIds(entity, entityIds);
+        log.debug("entitySummaries returned: {}", summaries.size());
+        //log.trace("entitySummaries: {}", summaries);
+        return summaries;
+    }
+
+    @GetMapping("/api/summaries/types")
+    public List<String> getAllTypes() {
+        List<String> types = entitySummaryService.findAllTypes();
+        return types;
+    }
+
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/MessageController.java
+// MessageController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.model.Message;
+import net.sampsoftware.genai.repository.MessageRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/messages")
+public class MessageController {
+    private final MessageRepository repo;
+    public MessageController(MessageRepository repo) { this.repo = repo; }
+
+    @GetMapping public List<Message> all() { return repo.findAll(); }
+    @PostMapping public Message create(@RequestBody Message m) { return repo.save(m); }
+    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { repo.deleteById(id); }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ModelConfigurationController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.ModelConfigurationDto;
+import net.sampsoftware.genai.mapper.ModelConfigurationMapper;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.repository.ModelConfigurationRepository;
+
+import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/model-configurations")
+@RequiredArgsConstructor
+public class ModelConfigurationController extends CrudDtoController<ModelConfiguration, ModelConfigurationDto, Long> {
+
+    private final ModelConfigurationRepository configRepository;
+    private final ModelConfigurationMapper configMapper;
+
+    @Override
+    protected JpaRepository<ModelConfiguration, Long> getRepository() {
+        return configRepository;
+    }
+
+    @Override
+    protected ModelConfigurationDto toDto(ModelConfiguration entity) {
+        return configMapper.toDto(entity);
+    }
+
+    @Override
+    protected ModelConfiguration toEntity(ModelConfigurationDto dto) {
+        return configMapper.toEntity(dto);
+    }
+
+    @Override
+    @GetMapping("/{id}")
+    public ResponseEntity<ModelConfigurationDto> get(@PathVariable Long id) {
+        var config = configRepository.findByIdWithModel(id);
+        return config
+            .map(configMapper::toDto)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    @Override
+    @GetMapping
+    public List<ModelConfigurationDto> list() {
+        var entities = ((ModelConfigurationRepository)getRepository()).findAllWithModels();
+        
+        var dtos = entities.stream()
+                    .map(this::toDto)
+                    .collect(Collectors.toList());
+        
+        return dtos;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ModelController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.ModelDto;
+import net.sampsoftware.genai.mapper.ModelMapper;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.repository.ModelRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/models")
+@RequiredArgsConstructor
+public class ModelController extends CrudDtoController<Model, ModelDto, Long> {
+
+    private final ModelRepository modelRepository;
+    private final ModelMapper modelMapper;
+
+    @Override
+    protected JpaRepository<Model, Long> getRepository() {
+        return modelRepository;
+    }
+
+    @Override
+    protected ModelDto toDto(Model entity) {
+        return modelMapper.toDto(entity);
+    }
+
+    @Override
+    protected Model toEntity(ModelDto dto) {
+        return modelMapper.toEntity(dto);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ModelParameterController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.ModelParameterDto;
+import net.sampsoftware.genai.service.ModelParameterService;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/model-parameters")
+@RequiredArgsConstructor
+
+public class ModelParameterController {
+
+    private final ModelParameterService parameterService;
+
+    @GetMapping("/model/{modelId}")
+    public List<ModelParameterDto> getParametersForModel(@PathVariable Long modelId) {
+        List<ModelParameterDto> ret = parameterService.getParametersForModel(modelId);
+        log.trace(Integer.toString(ret.size()));
+        return ret;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/RankedBookController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.model.RankedBook;
+import net.sampsoftware.genai.repository.RankedBookRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/books")
+public class RankedBookController {
+    private final RankedBookRepository repo;
+    public RankedBookController(RankedBookRepository repo) { this.repo = repo; }
+
+    @GetMapping public List<RankedBook> all() { return repo.findAll(); }
+    @GetMapping("/list/{sourceId}") public List<RankedBook> byList(@PathVariable Long sourceId) {
+        return repo.findBySourceIdOrderByRankAsc(sourceId);
+    }
+    @PostMapping public RankedBook create(@RequestBody RankedBook b) { return repo.save(b); }
+    @PutMapping("/{id}") public RankedBook update(@PathVariable Long id, @RequestBody RankedBook b) {
+        b.setId(id); return repo.save(b);
+    }
+    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { repo.deleteById(id); }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/BatchSummaryRequest.java
+package net.sampsoftware.genai.dto;
+
+public record BatchSummaryRequest(
+    Long modelConfigurationId,
+    String prompt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/BatchSummaryResponse.java
+package net.sampsoftware.genai.dto;
+
+public record BatchSummaryResponse(
+    int successCount,
+    int failureCount
+) {}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ChatRequest.java
+package net.sampsoftware.genai.dto;
+
+public class ChatRequest {
+    private String content;
+
+    public ChatRequest() {}
+
+    public ChatRequest(String content) {
+        this.content = content;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ChatResponse.java
+package net.sampsoftware.genai.dto;
+
+public class ChatResponse {
+    private String reply;
+
+    public ChatResponse() {}
+
+    public ChatResponse(String reply) {
+        this.reply = reply;
+    }
+
+    public String getReply() {
+        return reply;
+    }
+
+    public void setReply(String reply) {
+        this.reply = reply;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/CytoscapeDto.java
+package net.sampsoftware.genai.dto;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class CytoscapeDto {
+    private Elements elements;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Elements {
+        private List<CytoscapeNode> nodes;
+        private List<CytoscapeEdge> edges;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CytoscapeNode {
+        private NodeData data;
+        private String classes;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class NodeData {
+        private String id;
+        private String label;
+        private String type;
+        private Object details;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CytoscapeEdge {
+        private EdgeData data;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class EdgeData {
+        private String id;
+        private String source;
+        private String target;
+        private String label;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/EntitySummaryDto.java
+package net.sampsoftware.genai.dto;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.time.LocalDateTime;
+
+public record EntitySummaryDto(
+        Long id,
+        Long entityId,
+        String summary,
+        String modelName,
+        String modelProvider,
+        Long modelId,
+        Long modelConfigurationId,
+        JsonNode modelConfig,
+        String configComment,
+        LocalDateTime createdAt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelCallRequest.java
+package net.sampsoftware.genai.dto;
+
+public record ModelCallRequest(
+    Long modelConfigurationId,
+    String prompt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelCallResponse.java
+package net.sampsoftware.genai.dto;
+
+/**
+ * DTO for responses from model invocations
+ */
+public record ModelCallResponse(
+    String response
+) {}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelConfigurationDto.java
+package net.sampsoftware.genai.dto;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Instant;
+
+public record ModelConfigurationDto(
+        Long id,
+        Long modelId,
+        String modelName,
+        String modelProvider,
+        JsonNode modelConfig,
+        String comment,
+        Instant createdAt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelDto.java
+package net.sampsoftware.genai.dto;
+
+import lombok.Data;
+
+@Data
+public class ModelDto {
+    private Long id;
+    private String modelName;
+    private String modelProvider;
+    private String modelApiUrl;
+    private String comment;
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelParameterDto.java
+package net.sampsoftware.genai.dto;
+
+/**
+ * Data Transfer Object for model parameters using Java 17+ record
+ */
+public record ModelParameterDto(
+        Long id,
+        Long modelId,
+        String paramName,
+        String description,
+        String dataType,
+        String minValue,
+        String maxValue,
+        String defaultValue,
+        Integer displayOrder
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/GenaiApplication.java
+package net.sampsoftware.genai;
+
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+@EnableAsync
+public class GenaiApplication {
+    public static void main(String[] args) {
+        new SpringApplicationBuilder(GenaiApplication.class)
+            .web(WebApplicationType.SERVLET) // 🔒 Explicitly use Servlet mode
+            .run(args);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/mapper/ModelConfigurationMapper.java
+package net.sampsoftware.genai.mapper;
+
+import net.sampsoftware.genai.dto.ModelConfigurationDto;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import org.mapstruct.*;
+
+@Mapper(componentModel = "spring")
+public interface ModelConfigurationMapper {
+
+    @Mapping(source = "model.id", target = "modelId")
+    @Mapping(source = "model.modelName", target = "modelName")
+    @Mapping(source = "model.modelProvider", target = "modelProvider")
+    ModelConfigurationDto toDto(ModelConfiguration entity);
+
+    @Mapping(target = "model", source = "modelId", qualifiedByName = "modelFromId")
+    @Mapping(target = "createdAt", ignore = true)  // Let entity default it
+    ModelConfiguration toEntity(ModelConfigurationDto dto);
+
+    @Named("modelFromId")
+    default Model modelFromId(Long id) {
+        if (id == null) return null;
+        Model model = new Model();
+        model.setId(id);
+        return model;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/mapper/ModelMapper.java
+package net.sampsoftware.genai.mapper;
+
+import net.sampsoftware.genai.dto.ModelDto;
+import net.sampsoftware.genai.model.Model;
+import org.mapstruct.Mapper;
+
+@Mapper(componentModel = "spring")
+public interface ModelMapper {
+    ModelDto toDto(Model entity);
+    Model toEntity(ModelDto dto);
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/BookRankSource.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDate;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+@Entity
+@Table(name = "book_rank_source")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+public class BookRankSource {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String orgName;
+    private LocalDate publishDate;
+
+    @OneToMany(mappedBy = "source", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<RankedBook> rankedBooks;
+
+    // Getters and setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getOrgName() { return orgName; }
+    public void setOrgName(String orgName) { this.orgName = orgName; }
+    public LocalDate getPublishDate() { return publishDate; }
+    public void setPublishDate(LocalDate publishDate) { this.publishDate = publishDate; }
+    public List<RankedBook> getRankedBooks() { return rankedBooks; }
+    public void setRankedBooks(List<RankedBook> rankedBooks) { this.rankedBooks = rankedBooks; }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/EntitySummary.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+import java.time.ZonedDateTime;
+
+@Entity
+@Table(name = "entity_summary")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class EntitySummary {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "model_configuration_id")
+    private ModelConfiguration modelConfiguration;
+    
+    @Column(name = "type")
+    private String type;
+    
+    @Column(name = "entity_id")
+    private Long entityId;
+    
+    @Column(name = "summary", columnDefinition = "text")
+    private String summary;
+    
+    @Column(name = "created_at")
+    @Builder.Default
+    private ZonedDateTime createdAt = ZonedDateTime.now();
+    
+    @Column(name = "batch_id")
+    private Long batchId;
+
+    public Long getModelConfigurationId() {
+        return modelConfiguration != null ? modelConfiguration.getId() : null;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Message.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "messages")
+@EntityListeners(AuditingEntityListener.class)
+public class Message {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String content;
+
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdDate;
+
+    // Getters and setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+
+    public LocalDateTime getCreatedDate() { return createdDate; }
+    public void setCreatedDate(LocalDateTime createdDate) { this.createdDate = createdDate; }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Model.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Model {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String modelName;
+    private String modelProvider;
+    private String modelApiUrl;
+    private String comment;
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/ModelConfiguration.java
+package net.sampsoftware.genai.model;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "model_configuration")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ModelConfiguration {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "model_id")
+    private Model model;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private JsonNode modelConfig;
+
+    private String comment;
+
+    @Builder.Default
+    private Instant createdAt = Instant.now();
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/ModelParameter.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "model_parameter")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ModelParameter {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "model_id")
+    private Model model;
+    
+    private String paramName;
+    private String description;
+    private String dataType; // e.g., "number", "string"
+    private String minValue;
+    private String maxValue;
+    private String defaultValue;
+    private Integer displayOrder;
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/RankedBook.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "ranked_books")
+public class RankedBook {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Integer rank;
+    private String title;
+    private String authorName;
+    private String publishYear;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "list_id")
+    private BookRankSource source;
+
+    // Getters and setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public Integer getRank() { return rank; }
+    public void setRank(Integer rank) { this.rank = rank; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public String getAuthorName() { return authorName; }
+    public void setAuthorName(String authorName) { this.authorName = authorName; }
+    public String getPublishYear() { return publishYear; }
+    public void setPublishYear(String publishYear) { this.publishYear = publishYear; }
+    public BookRankSource getSource() { return source; }
+    public void setSource(BookRankSource source) { this.source = source; }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/BookRankSourceRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.BookRankSource;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface BookRankSourceRepository extends JpaRepository<BookRankSource, Long> {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/EntitySummaryRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.dto.EntitySummaryDto;
+import net.sampsoftware.genai.model.EntitySummary;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+
+@Repository
+public interface EntitySummaryRepository extends JpaRepository<EntitySummary, Long> {
+    // Entity-returning methods
+    List<EntitySummary> findByType(String type);
+
+    List<EntitySummary> findByTypeAndEntityIdIn(String type, List<Long> entityIds);
+
+    // Updated query to include full model and configuration details
+    @Query("SELECT new net.sampsoftware.genai.dto.EntitySummaryDto(" +
+            "e.id, e.entityId, e.summary, " +
+            "m.modelName, m.modelProvider, m.id, " +
+            "mc.id, mc.modelConfig, mc.comment, " +
+            "CAST(e.createdAt as java.time.LocalDateTime)) " +
+            "FROM EntitySummary e " +
+            "JOIN e.modelConfiguration mc " +
+            "JOIN mc.model m " +
+            "WHERE e.type = :type")
+    List<EntitySummaryDto> findDtosByType(@Param("type") String type);
+
+    @Query("SELECT DISTINCT e.type FROM EntitySummary e")
+    List<String> findAllDistinctTypes();
+
+    // Updated query to include full model and configuration details for specific entityIds
+    @Query("SELECT new net.sampsoftware.genai.dto.EntitySummaryDto(" +
+            "e.id, e.entityId, e.summary, " +
+            "m.modelName, m.modelProvider, m.id, " +
+            "mc.id, mc.modelConfig, mc.comment, " +
+            "CAST(e.createdAt as java.time.LocalDateTime)) " +
+            "FROM EntitySummary e " +
+            "JOIN e.modelConfiguration mc " +
+            "JOIN mc.model m " +
+            "WHERE e.type = :type AND e.entityId IN :entityIds")
+    List<EntitySummaryDto> findDtosByTypeAndEntityIds(
+            @Param("type") String type,
+            @Param("entityIds") List<Long> entityIds
+    );
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/MessageRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Message;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface MessageRepository extends JpaRepository<Message, Long> {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/ModelConfigurationRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.ModelConfiguration;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface ModelConfigurationRepository extends JpaRepository<ModelConfiguration, Long> {
+
+    @Query("SELECT c FROM ModelConfiguration c JOIN FETCH c.model WHERE c.id = :id")
+    Optional<ModelConfiguration> findByIdWithModel(@Param("id") Long id);
+
+    @Query("SELECT c FROM ModelConfiguration c JOIN FETCH c.model")
+    List<ModelConfiguration> findAllWithModels();
+
+
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/ModelParameterRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.ModelParameter;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface ModelParameterRepository extends JpaRepository<ModelParameter, Long> {
+    
+    /**
+     * Find parameters for a specific model, ordered by display order
+     */
+    List<ModelParameter> findByModelIdOrderByDisplayOrder(Long modelId);
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/ModelRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Model;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ModelRepository extends JpaRepository<Model, Long> {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/RankedBookRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.RankedBook;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface RankedBookRepository extends JpaRepository<RankedBook, Long> {
+    List<RankedBook> findBySourceIdOrderByRankAsc(Long sourceId);
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/AIService.java
+package net.sampsoftware.genai.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class AIService extends BaseAiApiService {
+
+    private final ChatClient.Builder chatClientBuilder;
+
+    public String generateResponse(String promptText, ModelConfiguration modelConfig) {
+        ChatClient chatClient = buildChatClient(modelConfig);
+        
+        return executeApiCall(
+            () ->
+            chatClient.prompt()
+                .user(promptText)
+                .call()
+                .content()
+        );
+    }
+
+    public String generateResponse(String systemPrompt, String userPrompt, 
+                                 ModelConfiguration modelConfig) {
+        ChatClient chatClient = buildChatClient(modelConfig);
+        
+        return executeApiCall(
+            () ->
+            chatClient.prompt()
+                .system(systemPrompt)
+                .user(userPrompt)
+                .call()
+                .content()
+        );
+    }
+
+    private ChatClient buildChatClient(ModelConfiguration modelConfig) {
+        if (modelConfig == null || modelConfig.getModelConfig() == null) {
+            return chatClientBuilder.build();
+        }
+        
+        JsonNode configNode = modelConfig.getModelConfig();
+        
+        // Configure options based on the model configuration
+        ChatOptions.Builder optionsBuilder = ChatOptions.builder();
+        
+        if (configNode.has("temperature")) {
+            optionsBuilder.temperature(configNode.get("temperature").doubleValue());
+        }
+        
+        if (configNode.has("top_p")) {
+            optionsBuilder.topP(configNode.get("top_p").doubleValue());
+        }
+        
+        if (configNode.has("max_tokens")) {
+            optionsBuilder.maxTokens(configNode.get("max_tokens").intValue());
+        }
+        
+        return chatClientBuilder
+                .defaultOptions(optionsBuilder.build())
+                .build();
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/AsyncBookProcessor.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.model.EntitySummary;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.model.RankedBook;
+import net.sampsoftware.genai.service.AIService;
+import net.sampsoftware.genai.service.EntitySummaryService;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
+import java.util.concurrent.CompletableFuture;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AsyncBookProcessor {
+
+    private final AIService aiService;
+    private final EntitySummaryService entitySummaryService;
+
+    @Async
+    public CompletableFuture<Boolean> processBookAsync(
+            RankedBook book,
+            String systemPrompt,
+            ModelConfiguration modelConfiguration,
+            Long batchId
+    ) {
+        try {
+            String bookInfo = """
+            {
+                "title": "%s",
+                "authorName": "%s",
+                "publishYear": "%s",
+                "blurb": "%s"
+            }I
+            """.formatted(
+                    book.getTitle(),
+                    book.getAuthorName(),
+                    book.getPublishYear(),
+                    ""
+            );
+
+            log.trace("System prompt: {}", systemPrompt);
+            log.trace("BookInfo: {}", book);
+            log.trace("Model configuration: {}", modelConfiguration);
+            log.debug("Processing {} in batch {}",book.getAuthorName(), batchId);
+            String summary = aiService.generateResponse(
+                    systemPrompt,
+                    bookInfo,
+                    modelConfiguration
+            );
+            log.debug("Done {} in batch {} summary length {}", book.getAuthorName(), batchId, summary.length());
+            log.trace("Summary: {}", summary);
+
+            EntitySummary entitySummary = EntitySummary.builder()
+                    .modelConfiguration(modelConfiguration)
+                    .type("ranked_book")
+                    .entityId(book.getId())
+                    .summary(summary)
+                    .batchId(batchId)
+                    .build();
+
+            entitySummaryService.save(entitySummary);
+            return CompletableFuture.completedFuture(true);
+
+        } catch (Exception e) {
+            log.error("Error processing book {}: {}", book.getId(), e.getMessage(), e);
+            return CompletableFuture.completedFuture(false);
+        }
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/AsyncBookSummaryService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.model.EntitySummary;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.model.RankedBook;
+import net.sampsoftware.genai.repository.ModelConfigurationRepository;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AsyncBookSummaryService {
+
+    private final AIService aiService;
+    private final EntitySummaryService entitySummaryService;
+    private final ModelService modelService;
+    private final BookService bookService;
+    private final AsyncBookProcessor asyncBookProcessor;
+
+    public String generateResponse(
+            String promptText,
+            Long modelConfigurationId
+    ) {
+        Long batchId = System.nanoTime();
+
+        String systemPrompt = """
+            Here is the Title, Author Name and Publishing Year of a book. Please search the web
+            and produce a summary or blurb of the book. The summary should consist of one paragraph
+            describing the genre, length and literary style of the book, as well as a summary of
+            the plot. It should not include any "spoilers" or normative comments about the book.
+        """;
+
+        ModelConfiguration modelConfiguration =
+                modelService.findConfigurationById(modelConfigurationId);
+
+        List<RankedBook> books = bookService.findAll();
+        log.debug("Processing through {} books batchId {}", books.size(), batchId);
+
+
+
+        List<CompletableFuture<Boolean>> futures = books.stream()
+                .map(book -> asyncBookProcessor.processBookAsync(
+                        book,
+                        systemPrompt,
+                        modelConfiguration,
+                        batchId
+                    )
+                )
+                .toList();
+
+        long successCount = futures.stream()
+                .map(CompletableFuture::join)
+                .filter(result -> result)
+                .count();
+        log.debug("Completed {} books batchId {}", successCount, batchId);
+
+        return String.format("Successfully processed %d of %d in batch %d",
+            successCount, books.size(), batchId
+        );
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/BaseAiApiService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+
+public class BaseAiApiService {
+
+   @FunctionalInterface
+    protected interface AICallFunction {
+        String call() throws Exception;
+    }
+
+    protected String executeApiCall(AICallFunction apiCall) {
+        try {
+            return apiCall.call();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+}
+
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/BookService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.RankedBook;
+import net.sampsoftware.genai.repository.RankedBookRepository;
+
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class BookService {
+    private final RankedBookRepository bookRepo;
+
+    public List<RankedBook> findAll() {
+        List<RankedBook> books = bookRepo.findAll();
+        return books;
+    }
+
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/ChatService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class ChatService {
+
+    private final AIService aiService;
+
+    public String chat(String content) {
+        // This is a simplified version that doesn't use model configurations
+        // You could enhance this to use a default model configuration
+        return aiService.generateResponse(content, null);
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/CytoscapeService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.CytoscapeDto;
+import net.sampsoftware.genai.dto.EntitySummaryDto;
+import net.sampsoftware.genai.model.RankedBook;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CytoscapeService {
+
+    private final BookService bookService;
+    private final EntitySummaryService entitySummaryService;
+
+    /**
+     * Generate a Cytoscape graph of books and their summaries
+     */
+    public CytoscapeDto getBooksSummariesGraph() {
+        log.debug("Generating books-summaries graph");
+
+        // Get all books and their summaries
+        List<RankedBook> books = bookService.findAll();
+        List<Long> bookIds = books.stream()
+                .map(RankedBook::getId)
+                .collect(Collectors.toList());
+
+        log.debug("Found {} books", books.size());
+
+        // Get summaries for these books
+        List<EntitySummaryDto> summaries = entitySummaryService.findByTypeAndIds("ranked_book", bookIds);
+        log.debug("Found {} summaries", summaries.size());
+
+        List<CytoscapeDto.CytoscapeNode> nodes = new ArrayList<>();
+        List<CytoscapeDto.CytoscapeEdge> edges = new ArrayList<>();
+
+        // Add book nodes
+        for (RankedBook book : books) {
+            nodes.add(CytoscapeDto.CytoscapeNode.builder()
+                    .data(CytoscapeDto.NodeData.builder()
+                            .id("book-" + book.getId())
+                            .label(book.getTitle())
+                            .type("book")
+                            .details(book)
+                            .build())
+                    .classes("book")
+                    .build());
+        }
+
+        // Add summary nodes and connect to books
+        for (EntitySummaryDto summary : summaries) {
+            String summaryId = "summary-" + summary.id();
+            String bookId = "book-" + summary.entityId();
+
+            // Add summary node
+            nodes.add(CytoscapeDto.CytoscapeNode.builder()
+                    .data(CytoscapeDto.NodeData.builder()
+                            .id(summaryId)
+                            .label(summary.modelName() + " Summary")
+                            .type("summary")
+                            .details(summary)
+                            .build())
+                    .classes("summary")
+                    .build());
+
+            // Connect summary to book
+            edges.add(CytoscapeDto.CytoscapeEdge.builder()
+                    .data(CytoscapeDto.EdgeData.builder()
+                            .id("edge-" + bookId + "-" + summaryId)
+                            .source(bookId)
+                            .target(summaryId)
+                            .label("summarizes")
+                            .build())
+                    .build());
+        }
+
+        // Group summaries by model type
+        summaries.stream()
+                .collect(Collectors.groupingBy(s -> s.modelName()))
+                .forEach((modelName, modelSummaries) -> {
+                    if (modelSummaries.size() > 1) {
+                        // Create a model node
+                        String modelId = "model-" + modelName.replaceAll("\\s+", "-").toLowerCase();
+
+                        nodes.add(CytoscapeDto.CytoscapeNode.builder()
+                                .data(CytoscapeDto.NodeData.builder()
+                                        .id(modelId)
+                                        .label(modelName)
+                                        .type("model")
+                                        .build())
+                                .classes("model")
+                                .build());
+
+                        // Connect summaries to model
+                        for (EntitySummaryDto summary : modelSummaries) {
+                            String summaryId = "summary-" + summary.id();
+
+                            edges.add(CytoscapeDto.CytoscapeEdge.builder()
+                                    .data(CytoscapeDto.EdgeData.builder()
+                                            .id("edge-" + modelId + "-" + summaryId)
+                                            .source(summaryId)
+                                            .target(modelId)
+                                            .label("generated-by")
+                                            .build())
+                                    .build());
+                        }
+                    }
+                });
+
+        CytoscapeDto.Elements elements = new CytoscapeDto.Elements(nodes, edges);
+        return CytoscapeDto.builder().elements(elements).build();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/EntitySummaryService.java
+package net.sampsoftware.genai.service;
+
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.EntitySummaryDto;
+import net.sampsoftware.genai.model.EntitySummary;
+import net.sampsoftware.genai.repository.EntitySummaryRepository;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class EntitySummaryService {
+
+    private final EntitySummaryRepository entitySummaryRepository;
+
+    @Transactional
+    public EntitySummary save(EntitySummary entitySummary) {
+        return entitySummaryRepository.save(entitySummary);        
+    }
+
+    public List<EntitySummaryDto> findAll(String entityType) {
+        return entitySummaryRepository.findDtosByType(entityType);
+    }
+
+    public List<EntitySummaryDto> findByTypeAndIds(String entityType, List<Long> entityIds) {
+        return entitySummaryRepository.findDtosByTypeAndEntityIds(entityType, entityIds);
+    }
+
+    public List<String> findAllTypes() {
+        return entitySummaryRepository.findAllDistinctTypes();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/ModelParameterService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.ModelParameterDto;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.model.ModelParameter;
+import net.sampsoftware.genai.repository.ModelParameterRepository;
+import net.sampsoftware.genai.repository.ModelRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class ModelParameterService {
+
+    private final ModelRepository modelRepository;
+    private final ModelParameterRepository modelParameterRepository;
+    
+    /**
+     * Add parameter guidance for a specific model
+     */
+    @Transactional
+    public void addParameterGuidance(Long modelId, String paramName, 
+                                   String description, String dataType,
+                                   String minValue, String maxValue, 
+                                   String defaultValue, Integer displayOrder) {
+        
+        Optional<Model> modelOpt = modelRepository.findById(modelId);
+        if (modelOpt.isEmpty()) {
+            throw new IllegalArgumentException("Model not found: " + modelId);
+        }
+        
+        ModelParameter parameter = ModelParameter.builder()
+            .model(modelOpt.get())
+            .paramName(paramName)
+            .description(description)
+            .dataType(dataType)
+            .minValue(minValue)
+            .maxValue(maxValue)
+            .defaultValue(defaultValue)
+            .displayOrder(displayOrder)
+            .build();
+            
+        modelParameterRepository.save(parameter);
+    }
+    
+    /**
+     * Get all parameters for a model as DTOs
+     */
+    @Transactional(readOnly = true)
+    public List<ModelParameterDto> getParametersForModel(Long modelId) {
+        return modelParameterRepository.findByModelIdOrderByDisplayOrder(modelId)
+            .stream()
+            .map(this::convertToDto)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Convert a ModelParameter entity to a DTO
+     * Safely handles the lazy-loaded model property
+     */
+    private ModelParameterDto convertToDto(ModelParameter param) {
+        return new ModelParameterDto(
+            param.getId(),
+            param.getModel().getId(),
+            param.getParamName(),
+            param.getDescription(),
+            param.getDataType(),
+            param.getMinValue(),
+            param.getMaxValue(),
+            param.getDefaultValue(),
+            param.getDisplayOrder()
+        );
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/ModelService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.repository.ModelConfigurationRepository;
+
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class ModelService {
+    private final ModelConfigurationRepository modelConfigurationRepo;
+
+
+    public ModelConfiguration findConfigurationById(Long modelConfigurationId) {
+        Optional<ModelConfiguration> modelConfigOpt = modelConfigurationRepo.findByIdWithModel(modelConfigurationId);
+        if (modelConfigOpt.isEmpty()) {
+            throw new RuntimeException("Model configuration not found");
+        }
+        ModelConfiguration modelConfig = modelConfigOpt.get();
+        return modelConfig;
+    }
+
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/web/ModelConfigurationRequest.java
+package net.sampsoftware.genai.web;
+
+import com.fasterxml.jackson.databind.JsonNode;
+
+public record ModelConfigurationRequest(
+        Long modelId,
+        JsonNode modelConfig,
+        String comment
+) {}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/controller/ModelConfigurationControllerTest.java
+package net.sampsoftware.genai.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.repository.ModelRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import com.jayway.jsonpath.JsonPath;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+public class ModelConfigurationControllerTest  {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private ModelRepository modelRepository;
+
+    @Test
+    void createAndFetchModelConfiguration() throws Exception {
+        // Create and save the Model entity first
+        Model model = modelRepository.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model"));
+
+        // Create config JSON
+        ObjectNode config = objectMapper.createObjectNode();
+        config.put("temperature", 0.7);
+
+        // Build JSON body for ModelConfigurationDto
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("modelId", model.getId());
+        body.put("comment", "some comment");
+        body.set("modelConfig", config);
+
+        // Create ModelConfiguration
+        String response = mockMvc.perform(post("/api/model-configurations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").isNumber())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        Long configId = ((Integer)JsonPath.read(response, "$.id")).longValue();
+
+        // Now GET by ID (this uses your fetch-joined method)
+        mockMvc.perform(get("/api/model-configurations/{id}", configId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.modelName").value("gpt-4"))
+            .andExpect(jsonPath("$.modelProvider").value("openai"))
+            .andExpect(jsonPath("$.modelConfig.temperature").value(0.7));
+    }
+}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/controller/ModelControllerTest.java
+package net.sampsoftware.genai.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import net.sampsoftware.genai.dto.ModelDto;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class ModelControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    void createAndFetchModel() throws Exception {
+        ModelDto dto = new ModelDto();
+        dto.setModelName("gpt-3.5");
+        dto.setModelProvider("openai");
+        dto.setModelApiUrl("https://api.openai.com");
+        dto.setComment("test");
+
+        String json = objectMapper.writeValueAsString(dto);
+
+        String response = mockMvc.perform(post("/api/models")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").exists())
+                .andReturn().getResponse().getContentAsString();
+
+        ModelDto returned = objectMapper.readValue(response, ModelDto.class);
+        assertThat(returned.getModelName()).isEqualTo("gpt-3.5");
+
+        mockMvc.perform(get("/api/models/" + returned.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.modelProvider").value("openai"));
+    }
+}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/repository/ModelConfigurationRepositoryTest.java
+package net.sampsoftware.genai.repository;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+public class ModelConfigurationRepositoryTest {
+
+    @Autowired
+    private ModelConfigurationRepository configRepo;
+
+    @Autowired
+    private ModelRepository modelRepo;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    void canSaveAndLoadModelConfiguration() {
+        Model model = modelRepo.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", ""));
+
+        ObjectNode configJson = objectMapper.createObjectNode();
+        configJson.put("temperature", 0.7);
+
+        ModelConfiguration config = ModelConfiguration.builder()
+            .model(model)
+            .modelConfig(configJson)
+            .comment("Initial config")
+            .createdAt(Instant.now())
+            .build();
+
+        ModelConfiguration saved = configRepo.save(config);
+        assertThat(saved.getId()).isNotNull();
+        ModelConfiguration loaded = configRepo.findById(saved.getId()).orElseThrow();
+        assertThat(loaded.getModel().getId()).isEqualTo(model.getId());
+        assertThat(loaded.getComment()).isEqualTo("Initial config");
+        assertThat(loaded.getModelConfig().get("temperature").asDouble()).isEqualTo(0.7);
+
+    }
+}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/repository/ModelRepositoryTest.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Model;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+public class ModelRepositoryTest  {
+
+    @Autowired
+    private ModelRepository modelRepository;
+
+    @Test
+    void canSaveAndFindModel() {
+        Model model = new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model");
+        Model saved = modelRepository.save(model);
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(modelRepository.findById(saved.getId())).contains(saved);
+    }
+}
+-----------
