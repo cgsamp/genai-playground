@@ -9,7 +9,7 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>net.sampsoftware</groupId>
-    <artifactId>genai</artifactId>
+    <artifactId>Backend</artifactId>
     <version>0.1.0-SNAPSHOT</version>
     <name>genai</name>
     <description>GenAI Playground</description>
