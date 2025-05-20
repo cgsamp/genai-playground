@@ -200,6 +200,457 @@ module.exports = {
 
 -----------
 
+>>> ./next-frontend/.eslintrc.js
+module.exports = {
+    root: true,
+    extends: [
+        'next/core-web-vitals',
+        'eslint:recommended',
+        'plugin:@typescript-eslint/recommended',
+        'plugin:react/recommended',
+        'plugin:react-hooks/recommended',
+        'plugin:jsx-a11y/recommended',
+        'prettier',
+    ],
+    parser: '@typescript-eslint/parser',
+    parserOptions: {
+        ecmaFeatures: {
+            jsx: true,
+        },
+        ecmaVersion: 2021,
+        sourceType: 'module',
+    },
+    plugins: ['@typescript-eslint', 'react', 'react-hooks', 'jsx-a11y', 'import'],
+    rules: {
+        'react/react-in-jsx-scope': 'off',
+        'react/prop-types': 'off',
+        'react-hooks/rules-of-hooks': 'error',
+        'react-hooks/exhaustive-deps': 'warn',
+        '@typescript-eslint/explicit-module-boundary-types': 'off',
+        '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+        'import/order': [
+            'error',
+            {
+                groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+                'newlines-between': 'always',
+                alphabetize: { order: 'asc', caseInsensitive: true },
+            },
+        ],
+    },
+    settings: {
+        react: {
+            version: 'detect',
+        },
+    },
+};
+
+-----------
+
+>>> ./next-frontend/next.config.js
+// next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+    reactStrictMode: true,
+    swcMinify: true,
+}
+
+module.exports = nextConfig
+
+-----------
+
+>>> ./next-frontend/postcss.config.js
+// postcss.config.js
+module.exports = {
+    plugins: {
+        tailwindcss: {},
+        autoprefixer: {},
+    },
+}
+
+-----------
+
+>>> ./next-frontend/tailwind.config.js
+// tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+    content: [
+        './app/**/*.{js,ts,jsx,tsx,mdx}',
+        './pages/**/*.{js,ts,jsx,tsx,mdx}',
+        './components/**/*.{js,ts,jsx,tsx,mdx}',
+    ],
+    theme: {
+        extend: {},
+    },
+    plugins: [],
+}
+
+-----------
+
+>>> ./next-frontend/app/config/index.ts
+// app/config/index.ts
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+-----------
+
+>>> ./next-frontend/app/hooks/useApiError.ts
+// hooks/useApiError.ts
+'use client';
+
+import { useState } from 'react';
+import { ApiError } from '@/app/types';
+
+export function useApiError() {
+    const [error, setError] = useState<ApiError | null>(null);
+
+    const handleApiError = (err: unknown) => {
+        if (axios.isAxiosError(err) && err.response) {
+            setError({
+                status: err.response.status,
+                message: err.response.data?.message || err.message,
+                details: err.response.data?.details,
+            });
+        } else if (err instanceof Error) {
+            setError({
+                status: 500,
+                message: err.message,
+            });
+        } else {
+            setError({
+                status: 500,
+                message: 'An unknown error occurred',
+            });
+        }
+    };
+
+    const clearError = () => setError(null);
+
+    return { error, handleApiError, clearError };
+}
+
+-----------
+
+>>> ./next-frontend/app/hooks/useBooks.ts
+// hooks/useBooks.ts
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Book } from '@/app/types';
+import { api } from '@/app/lib/api';
+import { useApiError } from './useApiError';
+
+export function useBooks() {
+    const [books, setBooks] = useState<Book[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { error, handleApiError, clearError } = useApiError();
+
+    const fetchBooks = async () => {
+        clearError();
+        setLoading(true);
+        try {
+            const data = await api.books.getBooks();
+            setBooks(data);
+        } catch (err) {
+            handleApiError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchBooks();
+    }, []);
+
+    return {
+        books,
+        loading,
+        error,
+        refreshBooks: fetchBooks
+    };
+}
+
+-----------
+
+>>> ./next-frontend/app/lib/api/books.ts
+import axios from 'axios';
+import { Book, EntitySummary } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const getBooks = async (): Promise<Book[]> => {
+    const response = await axios.get<Book[]>(`${API_URL}/api/books`);
+    return response.data;
+};
+
+export const getBookSummaries = async (bookIds: number[]): Promise<EntitySummary[]> => {
+    const response = await axios.get<EntitySummary[]>(
+        `${API_URL}/api/summaries?entity=ranked_book&entityIds=${bookIds.join(',')}`
+    );
+    return response.data;
+};
+
+-----------
+
+>>> ./next-frontend/app/lib/api/chat.ts
+import axios from 'axios';
+import { ChatRequest, ChatResponse } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const sendChatMessage = async (content: string): Promise<ChatResponse> => {
+    const request: ChatRequest = { content };
+    const response = await axios.post<ChatResponse>(`${API_URL}/chat`, request);
+    return response.data;
+};
+
+-----------
+
+>>> ./next-frontend/app/lib/api/configs.ts
+// app/lib/api/configs.ts
+import axios from 'axios';
+import { ModelConfiguration } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const getConfigurations = async (): Promise<ModelConfiguration[]> => {
+    const response = await axios.get<ModelConfiguration[]>(`${API_URL}/api/model-configurations`);
+    return response.data;
+};
+
+export const getConfiguration = async (id: number): Promise<ModelConfiguration> => {
+    const response = await axios.get<ModelConfiguration>(`${API_URL}/api/model-configurations/${id}`);
+    return response.data;
+};
+
+export const createConfiguration = async (config: Omit<ModelConfiguration, 'id' | 'createdAt'>): Promise<ModelConfiguration> => {
+    const response = await axios.post<ModelConfiguration>(`${API_URL}/api/model-configurations`, config);
+    return response.data;
+};
+
+-----------
+
+>>> ./next-frontend/app/lib/api/cytoscape.ts
+// app/lib/api/cytoscape.ts
+import axios from 'axios';
+import { API_URL } from '@/app/config';
+
+export const getCytoscapeData = async (): Promise<any> => {
+    const response = await axios.get(`${API_URL}/api/cytoscape/books-summaries`);
+    return response.data;
+};
+
+-----------
+
+>>> ./next-frontend/app/lib/api/index.ts
+import * as booksApi from './books';
+import * as chatApi from './chat';
+import * as modelsApi from './models';
+import * as configsApi from './configs';
+import * as cytoscapeApi from './cytoscape';
+
+export const api = {
+    books: booksApi,
+    chat: chatApi,
+    models: modelsApi,
+    configs: configsApi,
+    cytoscape: cytoscapeApi,
+};
+
+-----------
+
+>>> ./next-frontend/app/lib/api/models.ts
+// app/lib/api/models.ts
+import axios from 'axios';
+import { Model, ModelConfiguration, ModelParameter, ModelCallRequest, ModelCallResponse } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const getModels = async (): Promise<Model[]> => {
+    const response = await axios.get<Model[]>(`${API_URL}/api/models`);
+    return response.data;
+};
+
+export const createModel = async (modelData: Omit<Model, 'id'>): Promise<Model> => {
+    const response = await axios.post<Model>(`${API_URL}/api/models`, modelData);
+    return response.data;
+};
+
+export const getModelConfigurations = async (): Promise<ModelConfiguration[]> => {
+    const response = await axios.get<ModelConfiguration[]>(`${API_URL}/api/model-configurations`);
+    return response.data;
+};
+
+export const createModelConfiguration = async (configData: Omit<ModelConfiguration, 'id' | 'createdAt'>): Promise<ModelConfiguration> => {
+    const response = await axios.post<ModelConfiguration>(`${API_URL}/api/model-configurations`, configData);
+    return response.data;
+};
+
+export const getModelParameters = async (modelId: number): Promise<ModelParameter[]> => {
+    const response = await axios.get<ModelParameter[]>(`${API_URL}/api/model-parameters/model/${modelId}`);
+    return response.data;
+};
+
+export const invokeModel = async (modelConfigId: number, prompt: string): Promise<ModelCallResponse> => {
+    const request: ModelCallRequest = {
+        modelConfigurationId: modelConfigId,
+        prompt
+    };
+    const response = await axios.post<ModelCallResponse>(`${API_URL}/api/batch-summary`, request);
+    return response.data;
+};
+
+-----------
+
+>>> ./next-frontend/app/types/api.ts
+// app/types/api.ts
+import { Book, BookSummaryRequest, BookSummaryResponse } from './book';
+import { ChatRequest, ChatResponse } from './chat';
+import { Model, ModelConfiguration, ModelCallRequest, ModelCallResponse, EntitySummary } from './model';
+
+// API Request/Response type definitions can go here if needed
+export interface ApiOptions {
+    baseUrl?: string;
+    headers?: Record<string, string>;
+}
+
+-----------
+
+>>> ./next-frontend/app/types/book.ts
+import { ID } from './common';
+
+export interface BookRankSource {
+    id: ID;
+    orgName: string;
+    publishDate: string;
+}
+
+export interface Book {
+    id: ID;
+    rank: number;
+    title: string;
+    authorName: string;
+    publishYear: string;
+    source?: BookRankSource;
+}
+
+export interface BookSummaryRequest {
+    modelConfigurationId: ID;
+    prompt: string;
+}
+
+export interface BookSummaryResponse {
+    successCount: number;
+    failureCount: number;
+}
+
+-----------
+
+>>> ./next-frontend/app/types/chat.ts
+export type ChatRole = 'user' | 'bot' | 'error' | 'system';
+
+export interface ChatMessage {
+    role: ChatRole;
+    content: string;
+    timestamp?: string;
+}
+
+export interface ChatRequest {
+    content: string;
+}
+
+export interface ChatResponse {
+    reply: string;
+}
+
+-----------
+
+>>> ./next-frontend/app/types/common.ts
+export type ID = number;
+
+export interface ApiResponse<T> {
+    data: T;
+    status: number;
+    message?: string;
+}
+
+export type ApiError = {
+    status: number;
+    message: string;
+    details?: Record<string, string[]>;
+};
+
+-----------
+
+>>> ./next-frontend/app/types/index.ts
+export * from './api';
+export * from './book';
+export * from './chat';
+export * from './common';
+export * from './model';
+
+-----------
+
+>>> ./next-frontend/app/types/model.ts
+import { ID } from './common';
+
+export interface Model {
+    id: ID;
+    modelName: string;
+    modelProvider: string;
+    modelApiUrl: string;
+    comment: string;
+}
+
+export interface ModelParameter {
+    id: ID;
+    modelId: ID;
+    paramName: string;
+    description: string;
+    dataType: string;
+    minValue: string;
+    maxValue: string;
+    defaultValue: string;
+    displayOrder: number;
+}
+
+export interface ModelConfiguration {
+    id: ID;
+    modelId: ID;
+    modelName?: string;
+    modelProvider?: string;
+    modelConfig: Record<string, any>;
+    comment: string;
+    createdAt: string;
+}
+
+export interface ModelCallRequest {
+    modelConfigurationId: ID;
+    prompt: string;
+}
+
+export interface ModelCallResponse {
+    response: string;
+}
+
+export interface EntitySummary {
+    id: ID;
+    entityId: ID;
+    summary: string;
+    modelName: string;
+    modelProvider: string;
+    modelId: ID;
+    modelConfigurationId: ID;
+    modelConfig: Record<string, any>;
+    configComment: string;
+    createdAt: string;
+}
+
+-----------
+
+>>> ./next-frontend/next-env.d.ts
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+
+-----------
+
 >>> ./frontend/src/components/books/BookList.jsx
 // BookList.jsx
 import React, { useEffect, useState } from 'react';
@@ -2408,6 +2859,82 @@ networks:
   "display": "standalone",
   "theme_color": "#000000",
   "background_color": "#ffffff"
+}
+
+-----------
+
+>>> ./next-frontend/package.json
+{
+  "name": "genai-dashboard-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cytoscape": "^3.28.1",
+    "lucide-react": "^0.294.0",
+    "next": "^15.3.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/cytoscape": "^3.19.14",
+    "@types/node": "^20.10.4",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.17",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "15.3.1",
+    "glob": "^10.3.10",
+    "lru-cache": "^10.1.0",
+    "postcss": "^8.4.32",
+    "rimraf": "^5.0.5",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "glob": "^10.3.10",
+    "rimraf": "^5.0.5",
+    "inflight": "npm:lru-cache@^10.1.0"
+  }
+}
+
+-----------
+
+>>> ./next-frontend/tsconfig.json
+{
+  "compilerOptions": {
+    "target": "es6",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
 }
 
 -----------
