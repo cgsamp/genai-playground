@@ -3,7 +3,7 @@ version: '3.8'
 services:
   postgres:
     image: postgres:16
-    container_name: genai-bookstore-postgres
+    container_name: genai-postgres
     ports:
       - "5432:5432"
     environment:
@@ -13,10 +13,10 @@ services:
       PGDATA: /var/lib/postgresql/data/pgdata
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - /mnt/c/Users/cgs12/IdeaProjects/genai-bookstore/docker/postgres/init:/docker-entrypoint-initdb.d
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgres} -d bookstore"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgres} -d playground"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -26,8 +26,7 @@ services:
 
 volumes:
   postgres-data:
-    name: genai-bookstore-postgres-data
-
+    name: genai-postgres-data
 
 networks:
   genai-network:

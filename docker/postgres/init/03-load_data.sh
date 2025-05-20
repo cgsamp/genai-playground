@@ -2,7 +2,7 @@
 
 set -e
 
-APP_DATABASE=${APP_DATABASE:-bookstore}
+APP_DATABASE=${APP_DATABASE:-playground}
 
 SCRIPT_DIR="$(dirname "$0")"
 SUBSCRIPTS_DIR="${SCRIPT_DIR}/subscripts"

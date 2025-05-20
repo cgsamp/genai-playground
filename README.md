@@ -54,7 +54,7 @@ It also showcases the use of Spring AI and other related technologies.
    POSTGRES_ADMIN_PASSWORD=your_postgres_admin_password
    POSTGRES_APP_USER=genai
    POSTGRES_APP_PASSWORD=genai
-   APP_DATABASE=bookstore
+   APP_DATABASE=playground
    ```
 
 ### Database Setup

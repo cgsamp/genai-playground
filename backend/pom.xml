@@ -10,9 +10,9 @@
     </parent>
     <groupId>net.sampsoftware</groupId>
     <artifactId>genai</artifactId>
-    <version>0.0.1-SNAPSHOT</version>
+    <version>0.1.0-SNAPSHOT</version>
     <name>genai</name>
-    <description>GenAI bookstore</description>
+    <description>GenAI Playground</description>
     <url/>
     <licenses>
         <license/>

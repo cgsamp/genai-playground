@@ -9,10 +9,8 @@ spring:
   application:
     name: genai
 
-
-
   datasource:
-    url: jdbc:postgresql://localhost:5432/bookstore
+    url: jdbc:postgresql://localhost:5432/playground
     username: genai
     password: genai
     driver-class-name: org.postgresql.Driver
@@ -22,13 +20,10 @@ spring:
       ddl-auto: validate
     show-sql: false
 
-
   sql:
     init:
       mode: always
       schema-location: classpath:/schema.sql
-
-
 logging:
   level:
     '[org.springframework.ai]': INFO
