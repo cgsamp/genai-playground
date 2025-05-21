@@ -28,4 +28,7 @@ load_table_data model_configuration
 load_table_data book_rank_source
 load_table_data ranked_books
 
+echo "Loading entity test data"
+   psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "${SUBSCRIPTS_DIR}/entity_test_data.sql"
+
 echo "Done!"

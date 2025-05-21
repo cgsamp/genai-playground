@@ -2,11 +2,10 @@ package net.sampsoftware.genai.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.sampsoftware.genai.model.EntitySummary;
+import net.sampsoftware.genai.model.Summary;
 import net.sampsoftware.genai.model.ModelConfiguration;
 import net.sampsoftware.genai.model.RankedBook;
-import net.sampsoftware.genai.service.AIService;
-import net.sampsoftware.genai.service.EntitySummaryService;
+import net.sampsoftware.genai.service.SummaryService;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -18,7 +17,7 @@ import java.util.concurrent.CompletableFuture;
 public class AsyncBookProcessor {
 
     private final AIService aiService;
-    private final EntitySummaryService entitySummaryService;
+    private final SummaryService summaryService;
 
     @Async
     public CompletableFuture<Boolean> processBookAsync(
@@ -46,23 +45,23 @@ public class AsyncBookProcessor {
             log.trace("BookInfo: {}", book);
             log.trace("Model configuration: {}", modelConfiguration);
             log.debug("Processing {} in batch {}",book.getAuthorName(), batchId);
-            String summary = aiService.generateResponse(
+            String summaryText = aiService.generateResponse(
                     systemPrompt,
                     bookInfo,
                     modelConfiguration
             );
-            log.debug("Done {} in batch {} summary length {}", book.getAuthorName(), batchId, summary.length());
-            log.trace("Summary: {}", summary);
+            log.debug("Done {} in batch {} summary length {}", book.getAuthorName(), batchId, summaryText.length());
+            log.trace("Summary: {}", summaryText);
 
-            EntitySummary entitySummary = EntitySummary.builder()
+            Summary summary = Summary.builder()
                     .modelConfiguration(modelConfiguration)
-                    .type("ranked_book")
+                    .entityType("ranked_book")
                     .entityId(book.getId())
-                    .summary(summary)
+                    .content(summaryText)
                     .batchId(batchId)
                     .build();
 
-            entitySummaryService.save(entitySummary);
+            summaryService.save(summary);
             return CompletableFuture.completedFuture(true);
 
         } catch (Exception e) {

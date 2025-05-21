@@ -1,4 +1,5 @@
 import { ID } from './common';
+import { Attributes } from './common';
 
 export interface BookRankSource {
     id: ID;
@@ -13,6 +14,7 @@ export interface Book {
     authorName: string;
     publishYear: string;
     source?: BookRankSource;
+    attributes: Attributes;
 }
 
 export interface BookSummaryRequest {
