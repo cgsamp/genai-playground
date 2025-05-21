@@ -7,7 +7,7 @@ import axios from 'axios';
 interface Book {
     id: number;
     rank: number;
-    title: string;
+    name: string;
     authorName: string;
     publishYear: string;
     source?: {
@@ -38,7 +38,7 @@ const Books2Panel: React.FC = () => {
     const [expandedSummaries, setExpandedSummaries] = useState<Set<number>>(new Set());
 
     useEffect(() => {
-        fetchBooksAndSummaries();
+        void fetchBooksAndSummaries();
     }, []);
 
     const fetchBooksAndSummaries = async (): Promise<void> => {
@@ -51,7 +51,7 @@ const Books2Panel: React.FC = () => {
             if (books.length > 0) {
                 const bookIds = books.map(book => book.id).join(',');
                 const summariesResponse = await axios.get<Summary[]>(
-                    `http://localhost:8080/api/summaries?entity=ranked_book&entityIds=${bookIds}`
+                    `http://localhost:8080/api/summaries?entityType=ranked_book&entityIds=${bookIds}`
                 );
                 setSummaries(summariesResponse.data);
             }
@@ -166,7 +166,7 @@ const Books2Panel: React.FC = () => {
                                         </div>
 
                                         <div>
-                                            <div className="font-semibold text-gray-900">{book.title}</div>
+                                            <div className="font-semibold text-gray-900">{book.name}</div>
                                             <div className="text-sm text-gray-600">
                                                 {book.authorName} • {book.publishYear}
                                             </div>

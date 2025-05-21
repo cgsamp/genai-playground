@@ -2,16 +2,12 @@ package net.sampsoftware.genai.service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.sampsoftware.genai.model.EntitySummary;
 import net.sampsoftware.genai.model.ModelConfiguration;
 import net.sampsoftware.genai.model.RankedBook;
-import net.sampsoftware.genai.repository.ModelConfigurationRepository;
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -19,7 +15,6 @@ import java.util.stream.Collectors;
 public class AsyncBookSummaryService {
 
     private final AIService aiService;
-    private final EntitySummaryService entitySummaryService;
     private final ModelService modelService;
     private final BookService bookService;
     private final AsyncBookProcessor asyncBookProcessor;

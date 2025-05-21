@@ -3,7 +3,7 @@ package net.sampsoftware.genai.service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.sampsoftware.genai.dto.CytoscapeDto;
-import net.sampsoftware.genai.dto.EntitySummaryDto;
+import net.sampsoftware.genai.dto.SummaryRecords.DetailedSummaryRecord;
 import net.sampsoftware.genai.model.RankedBook;
 import org.springframework.stereotype.Service;
 
@@ -17,7 +17,7 @@ import java.util.stream.Collectors;
 public class CytoscapeService {
 
     private final BookService bookService;
-    private final EntitySummaryService entitySummaryService;
+    private final SummaryService summaryService;
 
     /**
      * Generate a Cytoscape graph of books and their summaries
@@ -34,7 +34,7 @@ public class CytoscapeService {
         log.debug("Found {} books", books.size());
 
         // Get summaries for these books
-        List<EntitySummaryDto> summaries = entitySummaryService.findByTypeAndIds("ranked_book", bookIds);
+        List<DetailedSummaryRecord> summaries = summaryService.findByEntityTypeAndIds("ranked_book", bookIds);
         log.debug("Found {} summaries", summaries.size());
 
         List<CytoscapeDto.CytoscapeNode> nodes = new ArrayList<>();
@@ -54,7 +54,7 @@ public class CytoscapeService {
         }
 
         // Add summary nodes and connect to books
-        for (EntitySummaryDto summary : summaries) {
+        for (DetailedSummaryRecord summary : summaries) {
             String summaryId = "summary-" + summary.id();
             String bookId = "book-" + summary.entityId();
 
@@ -98,7 +98,7 @@ public class CytoscapeService {
                                 .build());
 
                         // Connect summaries to model
-                        for (EntitySummaryDto summary : modelSummaries) {
+                        for (DetailedSummaryRecord summary : modelSummaries) {
                             String summaryId = "summary-" + summary.id();
 
                             edges.add(CytoscapeDto.CytoscapeEdge.builder()

@@ -98,3 +98,71 @@ CREATE TABLE IF NOT EXISTS public.model_parameter
         ON DELETE CASCADE,
     CONSTRAINT model_parameter_model_id_param_name_key UNIQUE (model_id, param_name)
 );
+
+CREATE TABLE IF NOT EXISTS public.books (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    author_name VARCHAR(255),
+    publish_year VARCHAR(50),
+    attributes JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE  IF NOT EXISTS public.summaries (
+   id BIGSERIAL PRIMARY KEY,
+   name VARCHAR(255) NOT NULL,
+    batch_id bigint,
+    model_configuration_id bigint,
+   entity_type VARCHAR(100) NOT NULL,
+   entity_id BIGINT NOT NULL,
+   content TEXT,
+   source VARCHAR(255),
+   attributes JSONB NOT NULL DEFAULT '{}',
+   created_at TIMESTAMP NOT NULL,
+   updated_at TIMESTAMP NOT NULL,
+    CONSTRAINT summary_pkey PRIMARY KEY (id),
+    CONSTRAINT summary_model_configuration_id_fkey FOREIGN KEY (model_configuration_id)
+    REFERENCES public.model_configuration (id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION
+
+    );
+
+CREATE TABLE  IF NOT EXISTS public.relationships (
+   id BIGSERIAL PRIMARY KEY,
+   name VARCHAR(255) NOT NULL,
+   relationship_type VARCHAR(100) NOT NULL,
+   source_type VARCHAR(100) NOT NULL,
+   source_id BIGINT NOT NULL,
+   target_type VARCHAR(100) NOT NULL,
+   target_id BIGINT NOT NULL,
+   attributes JSONB NOT NULL DEFAULT '{}',
+   created_at TIMESTAMP NOT NULL,
+   updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE  IF NOT EXISTS public.people (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    birth_date DATE,
+    occupation VARCHAR(255),
+    attributes JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_books_author ON books(author_name);
+CREATE INDEX idx_books_year ON books(publish_year);
+CREATE INDEX idx_summaries_entity ON summaries(entity_type, entity_id);
+CREATE INDEX idx_relationships_type ON relationships(relationship_type);
+CREATE INDEX idx_relationships_source ON relationships(source_type, source_id);
+CREATE INDEX idx_relationships_target ON relationships(target_type, target_id);
+CREATE INDEX idx_people_email ON people(email);
+CREATE INDEX idx_people_occupation ON people(occupation);
+
+CREATE INDEX idx_books_attributes ON books USING GIN (attributes);
+CREATE INDEX idx_summaries_attributes ON summaries USING GIN (attributes);
+CREATE INDEX idx_relationships_attributes ON relationships USING GIN (attributes);
+CREATE INDEX idx_people_attributes ON people USING GIN (attributes);

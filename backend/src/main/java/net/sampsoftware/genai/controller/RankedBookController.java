@@ -7,7 +7,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/books")
+@RequestMapping("/api/rnakedbooks")
 public class RankedBookController {
     private final RankedBookRepository repo;
     public RankedBookController(RankedBookRepository repo) { this.repo = repo; }

@@ -16,6 +16,7 @@ export default function Navigation() {
         { path: '/invoke', label: 'Invoke Model', icon: <Command size={18} /> },
         { path: '/books', label: 'Books', icon: <Book size={18} /> },
         { path: '/books2', label: 'Books2', icon: <Book size={18} /> },
+        { path: '/entity', label: 'Entity', icon: <Book size={18} /> },
         { path: '/cytoscape', label: 'Visualizations', icon: <Terminal size={18} /> },
         { path: '/graph', label: 'Relationship Graph', icon: <Terminal size={18} /> }
     ];

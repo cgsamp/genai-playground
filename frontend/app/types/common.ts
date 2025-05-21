@@ -11,3 +11,5 @@ export type ApiError = {
     message: string;
     details?: Record<string, string[]>;
 };
+
+export type Attributes = Record<string, unknown>;
