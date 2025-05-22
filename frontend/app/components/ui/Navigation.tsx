@@ -3,7 +3,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Book, MessageCircle, Cpu, Settings, BarChart2, Command, Terminal } from 'lucide-react';
+import { Book, MessageCircle, Cpu, Settings, BarChart2, Command, Terminal, Group, Boxes } from 'lucide-react';
 
 export default function Navigation() {
     const pathname = usePathname();
@@ -15,10 +15,10 @@ export default function Navigation() {
         { path: '/configs', label: 'Configurations', icon: <Settings size={18} /> },
         { path: '/invoke', label: 'Invoke Model', icon: <Command size={18} /> },
         { path: '/books', label: 'Books', icon: <Book size={18} /> },
-        { path: '/books2', label: 'Books2', icon: <Book size={18} /> },
-        { path: '/entity', label: 'Entity', icon: <Book size={18} /> },
+        { path: '/collections', label: 'Collections', icon: <Group size={18} /> },
+        { path: '/entity', label: 'Entity', icon: <Boxes size={18} /> },
         { path: '/cytoscape', label: 'Visualizations', icon: <Terminal size={18} /> },
-        { path: '/graph', label: 'Relationship Graph', icon: <Terminal size={18} /> }
+        { path: '/graph', label: 'Relationship Graph', icon: <BarChart2 size={18} /> }
     ];
 
     return (

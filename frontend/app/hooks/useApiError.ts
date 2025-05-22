@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import axios from 'axios';
 import { ApiError } from '@/app/types';
 
 export function useApiError() {

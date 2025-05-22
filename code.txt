@@ -1,0 +1,4932 @@
+
+>>> ./frontend/.eslintrc.js
+module.exports = {
+    root: true,
+    extends: [
+        'next/core-web-vitals',
+        'eslint:recommended',
+        'plugin:@typescript-eslint/recommended',
+        'plugin:react/recommended',
+        'plugin:react-hooks/recommended',
+        'plugin:jsx-a11y/recommended',
+        'prettier',
+    ],
+    parser: '@typescript-eslint/parser',
+    parserOptions: {
+        ecmaFeatures: {
+            jsx: true,
+        },
+        ecmaVersion: 2021,
+        sourceType: 'module',
+    },
+    plugins: ['@typescript-eslint', 'react', 'react-hooks', 'jsx-a11y', 'import'],
+    rules: {
+        'react/react-in-jsx-scope': 'off',
+        'react/prop-types': 'off',
+        'react-hooks/rules-of-hooks': 'error',
+        'react-hooks/exhaustive-deps': 'warn',
+        '@typescript-eslint/explicit-module-boundary-types': 'off',
+        '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+        'import/order': [
+            'error',
+            {
+                groups: ['builtin', 'external', 'internal', 'parent', 'sibling', 'index'],
+                'newlines-between': 'always',
+                alphabetize: { order: 'asc', caseInsensitive: true },
+            },
+        ],
+    },
+    settings: {
+        react: {
+            version: 'detect',
+        },
+    },
+};
+
+-----------
+
+>>> ./frontend/next.config.js
+// next.config.js
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+    reactStrictMode: true,
+    swcMinify: true,
+}
+
+module.exports = nextConfig
+
+-----------
+
+>>> ./frontend/postcss.config.js
+// postcss.config.js
+module.exports = {
+    plugins: {
+        tailwindcss: {},
+        autoprefixer: {},
+    },
+}
+
+-----------
+
+>>> ./frontend/tailwind.config.js
+// tailwind.config.js
+/** @type {import('tailwindcss').Config} */
+module.exports = {
+    content: [
+        './app/**/*.{js,ts,jsx,tsx,mdx}',
+        './pages/**/*.{js,ts,jsx,tsx,mdx}',
+        './components/**/*.{js,ts,jsx,tsx,mdx}',
+    ],
+    theme: {
+        extend: {},
+    },
+    plugins: [],
+}
+
+-----------
+
+>>> ./frontend/app/config/index.ts
+// app/config/index.ts
+export const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080';
+
+-----------
+
+>>> ./frontend/app/hooks/useApiError.ts
+// hooks/useApiError.ts
+'use client';
+
+import { useState } from 'react';
+import { ApiError } from '@/app/types';
+
+export function useApiError() {
+    const [error, setError] = useState<ApiError | null>(null);
+
+    const handleApiError = (err: unknown) => {
+        if (axios.isAxiosError(err) && err.response) {
+            setError({
+                status: err.response.status,
+                message: err.response.data?.message || err.message,
+                details: err.response.data?.details,
+            });
+        } else if (err instanceof Error) {
+            setError({
+                status: 500,
+                message: err.message,
+            });
+        } else {
+            setError({
+                status: 500,
+                message: 'An unknown error occurred',
+            });
+        }
+    };
+
+    const clearError = () => setError(null);
+
+    return { error, handleApiError, clearError };
+}
+
+-----------
+
+>>> ./frontend/app/hooks/useBooks.ts
+// hooks/useBooks.ts
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Book } from '@/app/types';
+import { api } from '@/app/lib/api';
+import { useApiError } from './useApiError';
+
+export function useBooks() {
+    const [books, setBooks] = useState<Book[]>([]);
+    const [loading, setLoading] = useState(true);
+    const { error, handleApiError, clearError } = useApiError();
+
+    const fetchBooks = async () => {
+        clearError();
+        setLoading(true);
+        try {
+            const data = await api.books.getBooks();
+            setBooks(data);
+        } catch (err) {
+            handleApiError(err);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchBooks();
+    }, []);
+
+    return {
+        books,
+        loading,
+        error,
+        refreshBooks: fetchBooks
+    };
+}
+
+-----------
+
+>>> ./frontend/app/lib/api/books.ts
+import axios from 'axios';
+import { Book, EntitySummary } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const getBooks = async (): Promise<Book[]> => {
+    const response = await axios.get<Book[]>(`${API_URL}/api/books`);
+    return response.data;
+};
+
+export const getBookSummaries = async (bookIds: number[]): Promise<EntitySummary[]> => {
+    const response = await axios.get<EntitySummary[]>(
+        `${API_URL}/api/summaries?entity=ranked_book&entityIds=${bookIds.join(',')}`
+    );
+    return response.data;
+};
+
+-----------
+
+>>> ./frontend/app/lib/api/chat.ts
+import axios from 'axios';
+import { ChatRequest, ChatResponse } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const sendChatMessage = async (content: string): Promise<ChatResponse> => {
+    const request: ChatRequest = { content };
+    const response = await axios.post<ChatResponse>(`${API_URL}/chat`, request);
+    return response.data;
+};
+
+-----------
+
+>>> ./frontend/app/lib/api/configs.ts
+// app/lib/api/configs.ts
+import axios from 'axios';
+import { ModelConfiguration } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const getConfigurations = async (): Promise<ModelConfiguration[]> => {
+    const response = await axios.get<ModelConfiguration[]>(`${API_URL}/api/model-configurations`);
+    return response.data;
+};
+
+export const getConfiguration = async (id: number): Promise<ModelConfiguration> => {
+    const response = await axios.get<ModelConfiguration>(`${API_URL}/api/model-configurations/${id}`);
+    return response.data;
+};
+
+export const createConfiguration = async (config: Omit<ModelConfiguration, 'id' | 'createdAt'>): Promise<ModelConfiguration> => {
+    const response = await axios.post<ModelConfiguration>(`${API_URL}/api/model-configurations`, config);
+    return response.data;
+};
+
+-----------
+
+>>> ./frontend/app/lib/api/cytoscape.ts
+// app/lib/api/cytoscape.ts
+import axios from 'axios';
+import { API_URL } from '@/app/config';
+
+export const getCytoscapeData = async (): Promise<any> => {
+    const response = await axios.get(`${API_URL}/api/cytoscape/books-summaries`);
+    return response.data;
+};
+
+-----------
+
+>>> ./frontend/app/lib/api/index.ts
+import * as booksApi from './books';
+import * as chatApi from './chat';
+import * as modelsApi from './models';
+import * as configsApi from './configs';
+import * as cytoscapeApi from './cytoscape';
+
+export const api = {
+    books: booksApi,
+    chat: chatApi,
+    models: modelsApi,
+    configs: configsApi,
+    cytoscape: cytoscapeApi,
+};
+
+-----------
+
+>>> ./frontend/app/lib/api/models.ts
+// app/lib/api/models.ts
+import axios from 'axios';
+import { Model, ModelConfiguration, ModelParameter, ModelCallRequest, ModelCallResponse } from '@/app/types';
+import { API_URL } from '@/app/config';
+
+export const getModels = async (): Promise<Model[]> => {
+    const response = await axios.get<Model[]>(`${API_URL}/api/models`);
+    return response.data;
+};
+
+export const createModel = async (modelData: Omit<Model, 'id'>): Promise<Model> => {
+    const response = await axios.post<Model>(`${API_URL}/api/models`, modelData);
+    return response.data;
+};
+
+export const getModelConfigurations = async (): Promise<ModelConfiguration[]> => {
+    const response = await axios.get<ModelConfiguration[]>(`${API_URL}/api/model-configurations`);
+    return response.data;
+};
+
+export const createModelConfiguration = async (configData: Omit<ModelConfiguration, 'id' | 'createdAt'>): Promise<ModelConfiguration> => {
+    const response = await axios.post<ModelConfiguration>(`${API_URL}/api/model-configurations`, configData);
+    return response.data;
+};
+
+export const getModelParameters = async (modelId: number): Promise<ModelParameter[]> => {
+    const response = await axios.get<ModelParameter[]>(`${API_URL}/api/model-parameters/model/${modelId}`);
+    return response.data;
+};
+
+export const invokeModel = async (modelConfigId: number, prompt: string): Promise<ModelCallResponse> => {
+    const request: ModelCallRequest = {
+        modelConfigurationId: modelConfigId,
+        prompt
+    };
+    const response = await axios.post<ModelCallResponse>(`${API_URL}/api/batch-summary`, request);
+    return response.data;
+};
+
+-----------
+
+>>> ./frontend/app/lib/fetcher.ts
+// lib/fetcher.ts
+
+const BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL!;
+
+export async function fetcher<T>(path: string, options?: RequestInit): Promise<T> {
+    const res = await fetch(`${BASE_URL}${path}`, {
+        ...options,
+        headers: {
+            'Content-Type': 'application/json',
+            ...(options?.headers || {}),
+        },
+    });
+
+    if (!res.ok) {
+        const errorBody = await res.text();
+        throw new Error(`Fetch error ${res.status}: ${errorBody}`);
+    }
+
+    return res.json();
+}
+
+-----------
+
+>>> ./frontend/app/types/api.ts
+// app/types/api.ts
+import { Book, BookSummaryRequest, BookSummaryResponse } from './book';
+import { ChatRequest, ChatResponse } from './chat';
+import { Model, ModelConfiguration, ModelCallRequest, ModelCallResponse, EntitySummary } from './model';
+
+// API Request/Response type definitions can go here if needed
+export interface ApiOptions {
+    baseUrl?: string;
+    headers?: Record<string, string>;
+}
+
+-----------
+
+>>> ./frontend/app/types/book.ts
+import { ID } from './common';
+import { Attributes } from './common';
+
+export interface BookRankSource {
+    id: ID;
+    orgName: string;
+    publishDate: string;
+}
+
+export interface Book {
+    id: ID;
+    rank: number;
+    title: string;
+    authorName: string;
+    publishYear: string;
+    source?: BookRankSource;
+    attributes: Attributes;
+}
+
+export interface BookSummaryRequest {
+    modelConfigurationId: ID;
+    prompt: string;
+}
+
+export interface BookSummaryResponse {
+    successCount: number;
+    failureCount: number;
+}
+
+-----------
+
+>>> ./frontend/app/types/chat.ts
+export type ChatRole = 'user' | 'bot' | 'error' | 'system';
+
+export interface ChatMessage {
+    role: ChatRole;
+    content: string;
+    timestamp?: string;
+}
+
+export interface ChatRequest {
+    content: string;
+}
+
+export interface ChatResponse {
+    reply: string;
+}
+
+-----------
+
+>>> ./frontend/app/types/common.ts
+export type ID = number;
+
+export interface ApiResponse<T> {
+    data: T;
+    status: number;
+    message?: string;
+}
+
+export type ApiError = {
+    status: number;
+    message: string;
+    details?: Record<string, string[]>;
+};
+
+export type Attributes = Record<string, unknown>;
+
+-----------
+
+>>> ./frontend/app/types/index.ts
+export * from './api';
+export * from './book';
+export * from './chat';
+export * from './common';
+export * from './model';
+export * from './person';
+export * from './summary';
+export * from './relationship';
+
+-----------
+
+>>> ./frontend/app/types/model.ts
+import { ID } from './common';
+
+export interface Model {
+    id: ID;
+    modelName: string;
+    modelProvider: string;
+    modelApiUrl: string;
+    comment: string;
+}
+
+export interface ModelParameter {
+    id: ID;
+    modelId: ID;
+    paramName: string;
+    description: string;
+    dataType: string;
+    minValue: string;
+    maxValue: string;
+    defaultValue: string;
+    displayOrder: number;
+}
+
+export interface ModelConfiguration {
+    id: ID;
+    modelId: ID;
+    modelName?: string;
+    modelProvider?: string;
+    modelConfig: Record<string, any>;
+    comment: string;
+    createdAt: string;
+}
+
+export interface ModelCallRequest {
+    modelConfigurationId: ID;
+    prompt: string;
+}
+
+export interface ModelCallResponse {
+    response: string;
+}
+
+export interface EntitySummary {
+    id: ID;
+    entityId: ID;
+    summary: string;
+    modelName: string;
+    modelProvider: string;
+    modelId: ID;
+    modelConfigurationId: ID;
+    modelConfig: Record<string, any>;
+    configComment: string;
+    createdAt: string;
+}
+
+-----------
+
+>>> ./frontend/app/types/person.ts
+import {Attributes, ID} from "@/app/types/common";
+
+export interface Person {
+    id: ID;
+    name: string;
+    email: string;
+    occupation: string;
+    birthdate: string;
+    attributes: Attributes;
+}
+
+-----------
+
+>>> ./frontend/app/types/relationship.ts
+import {Attributes} from "@/app/types/common";
+
+export interface Relationship {
+    id: number;
+    name: string;
+    relationshipType : string;
+    sourceType: string;
+    sourceId: number;
+    targetType: string;
+    targetId :number;
+    createdAt: string;
+    updatedAt: string;
+    attributes: Attributes;
+}
+
+-----------
+
+>>> ./frontend/app/types/summary.ts
+import {Attributes} from "@/app/types/common";
+
+export interface Summary {
+    id: number;
+    entityId: number;
+    entityType: string;
+    content: string;
+    createdAt: string;
+    attributes: Attributes;
+}
+
+export interface DetailedSummary {
+    id: number;
+    entityId: number;
+    entityType: string;
+    entityName?: string;
+    entityDetails?: string;
+    content: string;
+    modelName: string;
+    modelProvider: string;
+    modelId: number;
+    modelConfigurationId: number;
+    modelConfig: any;
+    configComment: string;
+    createdAt: string;
+    attributes: Attributes;
+}
+
+-----------
+
+>>> ./frontend/next-env.d.ts
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+
+// NOTE: This file should not be edited
+// see https://nextjs.org/docs/app/api-reference/config/typescript for more information.
+
+-----------
+
+>>> ./.run/Backend.run.xml
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Backend" type="MavenRunConfiguration" factoryName="Maven">
+    <MavenSettings>
+      <option name="myGeneralSettings" />
+      <option name="myRunnerSettings" />
+      <option name="myRunnerParameters">
+        <MavenRunnerParameters>
+          <option name="cmdOptions" />
+          <option name="profiles">
+            <set />
+          </option>
+          <option name="goals">
+            <list>
+              <option value="clean" />
+              <option value="spring-boot:run" />
+              <option value="-DskipTests" />
+            </list>
+          </option>
+          <option name="multimoduleDir" />
+          <option name="pomFileName" />
+          <option name="profilesMap">
+            <map />
+          </option>
+          <option name="projectsCmdOptionValues">
+            <list />
+          </option>
+          <option name="resolveToWorkspace" value="false" />
+          <option name="workingDirPath" value="$PROJECT_DIR$/backend" />
+        </MavenRunnerParameters>
+      </option>
+    </MavenSettings>
+    <extension name="net.ashald.envfile">
+      <option name="IS_ENABLED" value="true" />
+      <option name="IS_SUBST" value="false" />
+      <option name="IS_PATH_MACRO_SUPPORTED" value="false" />
+      <option name="IS_IGNORE_MISSING_FILES" value="false" />
+      <option name="IS_ENABLE_EXPERIMENTAL_INTEGRATIONS" value="false" />
+      <ENTRIES>
+        <ENTRY IS_ENABLED="true" PARSER="runconfig" IS_EXECUTABLE="false" />
+        <ENTRY IS_ENABLED="true" PARSER="env" IS_EXECUTABLE="false" PATH=".env" />
+      </ENTRIES>
+    </extension>
+    <method v="2" />
+  </configuration>
+</component>
+-----------
+
+>>> ./.run/dev.run.xml
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="dev" type="js.build_tools.npm" nameIsGenerated="true">
+    <package-json value="$PROJECT_DIR$/frontend/package.json" />
+    <command value="run" />
+    <scripts>
+      <script value="dev" />
+    </scripts>
+    <node-interpreter value="project" />
+    <envs />
+    <method v="2" />
+  </configuration>
+</component>
+-----------
+
+>>> ./backend/pom.xml
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.springframework.boot</groupId>
+        <artifactId>spring-boot-starter-parent</artifactId>
+        <version>3.4.4</version>
+        <relativePath/> <!-- lookup parent from repository -->
+    </parent>
+    <groupId>net.sampsoftware</groupId>
+    <artifactId>Backend</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
+    <name>genai</name>
+    <description>GenAI Playground</description>
+    <url/>
+    <licenses>
+        <license/>
+    </licenses>
+    <developers>
+        <developer/>
+    </developers>
+    <scm>
+        <connection/>
+        <developerConnection/>
+        <tag/>
+        <url/>
+    </scm>
+    <properties>
+        <java.version>21</java.version>
+        <spring-ai.version>1.0.0-M8</spring-ai.version>
+        <mapstruct.version>1.5.5.Final</mapstruct.version>
+        <lombok.version>1.18.30</lombok.version>
+    </properties>
+
+    <repositories>
+        <repository>
+            <id>spring-milestones</id>
+            <name>Spring Milestone Repository</name>
+            <url>https://repo.spring.io/milestone</url>
+        </repository>
+    </repositories>
+
+
+    <dependencies>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-validation</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-starter-model-openai</artifactId>
+        </dependency>        
+
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct</artifactId>
+            <version>1.5.5.Final</version>
+        </dependency>
+        <dependency>
+            <groupId>org.mapstruct</groupId>
+            <artifactId>mapstruct-processor</artifactId>
+            <version>1.5.5.Final</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.ai</groupId>
+            <artifactId>spring-ai-postgresml</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-web</artifactId>
+        </dependency>        
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-devtools</artifactId>
+            <scope>runtime</scope>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <version>1.18.32</version>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.hibernate.orm</groupId>
+            <artifactId>hibernate-core</artifactId>
+            <version>6.4.4.Final</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+            <exclusions>
+            <exclusion>
+                <groupId>org.junit.vintage</groupId>
+                <artifactId>junit-vintage-engine</artifactId>
+            </exclusion>
+            </exclusions>
+        </dependency>
+
+
+
+        <dependency>
+            <groupId>org.junit.platform</groupId>
+            <artifactId>junit-platform-launcher</artifactId>
+            <version>1.10.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok-mapstruct-binding</artifactId>
+            <version>0.2.0</version>
+            <scope>provided</scope>
+        </dependency>
+        <!-- Testcontainers -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+
+
+
+
+    </dependencies>
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring-ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers-bom</artifactId>
+                <version>1.19.1</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.1.2</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.10.1</version>
+                <configuration>
+                    <source>${java.version}</source>
+                    <target>${java.version}</target>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.mapstruct</groupId>
+                            <artifactId>mapstruct-processor</artifactId>
+                            <version>${mapstruct.version}</version>
+                        </path>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok-mapstruct-binding</artifactId>
+                            <version>0.2.0</version>
+                        </path>
+                    </annotationProcessorPaths>
+                    <compilerArgs>
+                        <compilerArg>-Amapstruct.defaultComponentModel=spring</compilerArg>
+                        <compilerArg>-Amapstruct.verbose=true</compilerArg>
+                    </compilerArgs>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+</project>
+
+-----------
+
+>>> ./backend/run.sh
+#!/bin/bash
+set -eo pipefail
+IFS=$'\n\t'
+
+set -a
+source ../.env
+set +a
+
+set -x
+
+./mvnw clean package -DskipTests
+./mvnw $1 $2 $3 $4
+
+-----------
+
+>>> ./copy_books_tab.sh
+#!/bin/bash
+
+# Set variables
+NEW_PANEL_NAME="Books2Panel"
+NEW_ROUTE_NAME="books2"
+NEW_DISPLAY_LABEL="Books 2"
+
+echo "Creating new panel ${NEW_PANEL_NAME} for Next.js project"
+
+# Check if the original Books component exists
+BOOKS_DIR="./frontend/app/components/books"
+if [ ! -d "$BOOKS_DIR" ]; then
+  echo "Creating books component directory"
+  mkdir -p "$BOOKS_DIR"
+fi
+
+if [ ! -f "${BOOKS_DIR}/BooksPanel.tsx" ] && [ ! -f "${BOOKS_DIR}/BooksPanel.jsx" ]; then
+  echo "Error: Books component not found in expected locations"
+  exit 1
+fi
+
+# Determine file extension (.tsx or .jsx)
+if [ -f "${BOOKS_DIR}/BooksPanel.tsx" ]; then
+  EXT="tsx"
+else
+  EXT="jsx"
+fi
+
+# Create new panel component as a copy of BooksPanel
+cp "${BOOKS_DIR}/BooksPanel.${EXT}" "${BOOKS_DIR}/${NEW_PANEL_NAME}.${EXT}"
+echo "Created component file: ${BOOKS_DIR}/${NEW_PANEL_NAME}.${EXT}"
+
+# Update component name in the new file
+sed -i "s/BooksPanel/${NEW_PANEL_NAME}/g" "${BOOKS_DIR}/${NEW_PANEL_NAME}.${EXT}"
+echo "Updated component name references"
+
+# Create or update page route directory
+mkdir -p "./frontend/app/${NEW_ROUTE_NAME}"
+
+# Create layout.tsx for the new route
+cat > "./frontend/app/${NEW_ROUTE_NAME}/layout.tsx" << EOF
+export default function ${NEW_PANEL_NAME}Layout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return children;
+}
+EOF
+echo "Created layout file at ./frontend/app/${NEW_ROUTE_NAME}/layout.tsx"
+
+# Create page.tsx with proper imports
+cat > "./frontend/app/${NEW_ROUTE_NAME}/page.tsx" << EOF
+import ${NEW_PANEL_NAME} from '../../components/books/${NEW_PANEL_NAME}';
+import { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: '${NEW_DISPLAY_LABEL}',
+  description: '${NEW_DISPLAY_LABEL} panel',
+};
+
+export default function ${NEW_ROUTE_NAME}Page() {
+  return <${NEW_PANEL_NAME} />;
+}
+EOF
+echo "Created route page at ./frontend/app/${NEW_ROUTE_NAME}/page.tsx"
+
+# Find and update Navigation.tsx
+NAVIGATION_FILE="./frontend/app/components/ui/Navigation.tsx"
+if [ -f "$NAVIGATION_FILE" ]; then
+  # Check if the books entry exists to place our new entry after it
+  if grep -q "path: '/books'" "$NAVIGATION_FILE"; then
+    # Use awk to insert the new navigation item after the books entry
+    awk '/path: .\/books./ { print; print "  { path: '"'"'\/'"$NEW_ROUTE_NAME"''"'"', label: '"'"''"$NEW_DISPLAY_LABEL"''"'"', icon: <Book size={18} \/> },"; next }1' "$NAVIGATION_FILE" > temp.txt
+    mv temp.txt "$NAVIGATION_FILE"
+    echo "Added navigation item to $NAVIGATION_FILE"
+  else
+    echo "Warning: Could not find '/books' path in Navigation.tsx. You may need to add it manually."
+  fi
+else
+  echo "Warning: Navigation.tsx not found at expected location. You may need to update navigation manually."
+fi
+
+echo "Done! The new panel is accessible at /${NEW_ROUTE_NAME}"
+
+-----------
+
+>>> ./docker/postgres/init/02-create_database.sh
+#!/bin/bash
+
+set -e
+
+APP_DATABASE=${APP_DATABASE:-playground}
+POSTGRES_APP_USER=${POSTGRES_APP_USER:-genai}
+POSTGRES_APP_PASSWORD=${POSTGRES_APP_PASSWORD:-genai}
+
+SCRIPT_DIR="$(dirname "$0")"
+SUBSCRIPTS_DIR="${SCRIPT_DIR}/subscripts"
+
+echo "Checking for database '$APP_DATABASE'..."
+
+# Check if database exists - using standard variable interpolation
+db_exists=$(psql -U "$POSTGRES_USER" -d "postgres" -t -c "SELECT 1 FROM pg_database WHERE datname = '$APP_DATABASE';")
+db_exists=$(echo "$db_exists" | tr -d ' ')
+
+# Check if the variable has content
+if [ -n "$db_exists" ]; then
+  echo "Database '$APP_DATABASE' already exists."
+else
+  echo "Creating database '$APP_DATABASE'..."
+  psql -U "$POSTGRES_USER" -d "postgres" -c "CREATE DATABASE \"$APP_DATABASE\";"
+
+  # Check if user already exists before creating
+  user_exists=$(psql -U "$POSTGRES_USER" -d "postgres" -t -c "SELECT 1 FROM pg_roles WHERE rolname = '$POSTGRES_APP_USER';")
+  user_exists=$(echo "$user_exists" | tr -d ' ')
+
+  if [ -n "$user_exists" ]; then
+    echo "User '$POSTGRES_APP_USER' already exists."
+  else
+    echo "Creating user '$POSTGRES_APP_USER'..."
+    psql -U "$POSTGRES_USER" -d "postgres" -c "CREATE USER \"$POSTGRES_APP_USER\" WITH PASSWORD '$POSTGRES_APP_PASSWORD';"
+  fi
+
+  echo "Creating schema..."
+  psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "${SUBSCRIPTS_DIR}/schema.sql"
+
+  echo "Granting privileges to '$POSTGRES_APP_USER'..."
+  psql -U "$POSTGRES_USER" -d "postgres" -c "GRANT ALL PRIVILEGES ON DATABASE \"$APP_DATABASE\" TO \"$POSTGRES_APP_USER\";"
+
+  psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -c "
+    GRANT ALL PRIVILEGES ON SCHEMA public TO \"$POSTGRES_APP_USER\";
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON TABLES TO \"$POSTGRES_APP_USER\";
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON SEQUENCES TO \"$POSTGRES_APP_USER\";
+    ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL PRIVILEGES ON FUNCTIONS TO \"$POSTGRES_APP_USER\";
+    GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO \"$POSTGRES_APP_USER\";
+    GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO \"$POSTGRES_APP_USER\";
+    GRANT ALL PRIVILEGES ON ALL FUNCTIONS IN SCHEMA public TO \"$POSTGRES_APP_USER\";
+  "
+  echo "Database initialization complete!"
+fi
+
+-----------
+
+>>> ./docker/postgres/init/03-load_data.sh
+#!/bin/bash
+
+set -e
+
+APP_DATABASE=${APP_DATABASE:-playground}
+
+SCRIPT_DIR="$(dirname "$0")"
+SUBSCRIPTS_DIR="${SCRIPT_DIR}/subscripts"
+
+echo "Loading data if table empty..."
+load_table_data() {
+  local table_name="$1"
+  local count=$(psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -t -c "SELECT COUNT(*) FROM $table_name;")
+  count=$(echo "$count" | tr -d ' ')
+
+  if [ "$count" -gt "0" ]; then
+    echo "$table_name already loaded."
+  else
+    echo "Loading $table_name..."
+    psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "${SUBSCRIPTS_DIR}/${table_name}.sql"
+    echo "$table_name loaded."
+  fi
+}
+
+load_table_data model
+load_table_data model_parameter
+load_table_data model_configuration
+load_table_data book_rank_source
+load_table_data ranked_books
+
+echo "Loading entity test data"
+   psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "${SUBSCRIPTS_DIR}/entity_test_data.sql"
+
+echo "Done!"
+
+-----------
+
+>>> ./backend/src/main/resources/application.yml
+spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      chat:
+        options:
+          model: gpt-3.5-turbo
+
+  application:
+    name: genai
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/${APP_DATABASE}
+    username: ${POSTGRES_APP_USERNAME}
+    password: ${POSTGRES_APP_PASSWORD}
+    driver-class-name: org.postgresql.Driver
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    show-sql: false
+
+  sql:
+    init:
+      mode: always
+      schema-location: classpath:/schema.sql
+logging:
+  level:
+    '[org.springframework.ai]': INFO
+    '[org.springframework.boot.autoconfigure]': INFO
+    '[org.springframework.web]': INFO
+    '[org.springframework.web.filter.CommonsRequestLoggingFilter]': DEBUG
+    '[net.sampsoftware.genai]': DEBUG
+    '[net.sampsoftware.genai.controller]': TRACE
+
+server:
+  port: 8080
+
+-----------
+
+>>> ./backend/src/test/resources/application.yml
+spring:
+  ai:
+    openai:
+      api-key: testkey
+      chat:
+        options:
+          model: gpt-3.5-turbo
+
+  datasource:
+    url: jdbc:tc:postgresql:15:///testdb
+    driver-class-name: org.testcontainers.jdbc.ContainerDatabaseDriver
+    username: test
+    password: test
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
+
+-----------
+
+>>> ./docker/docker-compose.yml
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: genai-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: postgres
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_ADMIN_PASSWORD:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME:-postgres} -d playground"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - genai-network
+
+volumes:
+  postgres-data:
+    name: genai-postgres-data
+
+networks:
+  genai-network:
+    name: genai-network
+    driver: bridge
+
+-----------
+
+>>> ./frontend/package.json
+{
+  "name": "genai-dashboard-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "node ./node_modules/next/dist/bin/next dev",
+    "build": "node ./node_modules/next/dist/bin/next build",
+    "start": "node ./node_modules/next/dist/bin/next start",
+    "lint": "node ./node_modules/next/dist/bin/next lint",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "axios": "^1.6.2",
+    "cytoscape": "^3.28.1",
+    "lucide-react": "^0.294.0",
+    "next": "^15.3.2",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/cytoscape": "^3.19.14",
+    "@types/node": "^20.10.4",
+    "@types/react": "^18.2.45",
+    "@types/react-dom": "^18.2.17",
+    "autoprefixer": "^10.4.16",
+    "eslint": "^9.27.0",
+    "eslint-config-next": "15.3.1",
+    "glob": "^10.3.10",
+    "lru-cache": "^10.1.0",
+    "postcss": "^8.4.32",
+    "rimraf": "^5.0.5",
+    "tailwindcss": "^3.3.6",
+    "typescript": "^5.3.3"
+  },
+  "overrides": {
+    "glob": "^10.3.10",
+    "rimraf": "^5.0.5",
+    "inflight": "npm:lru-cache@^10.1.0"
+  }
+}
+
+-----------
+
+>>> ./frontend/tsconfig.json
+{
+  "compilerOptions": {
+    "target": "es6",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}
+
+-----------
+
+>>> ./package.json
+{
+  "dependencies": {
+    "@tailwindcss/forms": "^0.5.10",
+    "axios": "^1.9.0",
+    "install": "^0.13.0",
+    "lucide-react": "^0.511.0",
+    "npm": "^11.4.0",
+    "react-router-dom": "^7.6.0",
+    "tailwindcss": "^4.1.7"
+  }
+}
+
+-----------
+
+>>> ./docker/postgres/init/archive/book_rank_source.sql
+INSERT INTO book_rank_source (org_name, publish_date) VALUES ('New York Times','2024-07-08') RETURNING id;
+
+-----------
+
+>>> ./docker/postgres/init/archive/model_configuration.sql
+-- SQL script with properly escaped apostrophes
+
+-- First, ensure we have the models
+INSERT INTO model (model_name, model_provider, model_api_url, comment) 
+SELECT 'gpt-3.5-turbo', 'OpenAI', 'https://api.openai.com/v1', 'GPT-3.5 Turbo model'
+WHERE NOT EXISTS (SELECT 1 FROM model WHERE model_name = 'gpt-3.5-turbo');
+
+INSERT INTO model (model_name, model_provider, model_api_url, comment) 
+SELECT 'gpt-4', 'OpenAI', 'https://api.openai.com/v1', 'GPT-4 model'
+WHERE NOT EXISTS (SELECT 1 FROM model WHERE model_name = 'gpt-4');
+
+-- Get model IDs for insertion
+DO $$
+DECLARE
+    gpt35_id bigint;
+    gpt4_id bigint;
+BEGIN
+    SELECT id INTO gpt35_id FROM model WHERE model_name = 'gpt-3.5-turbo';
+    SELECT id INTO gpt4_id FROM model WHERE model_name = 'gpt-4';
+    
+    -- Common parameters for GPT-3.5 Turbo
+    -- Temperature
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'temperature', 
+           'Controls randomness in token selection. Lower values make output more deterministic and focused (0 is deterministic), higher values make output more random and creative.', 
+           'number', '0.0', '2.0', '0.7', 1
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'temperature');
+
+    -- Top_p
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'top_p', 
+           'Controls diversity via nucleus sampling. The model considers tokens with top_p probability mass. 0.1 means only the tokens comprising the top 10% probability are considered.', 
+           'number', '0.0', '1.0', '1.0', 2
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'top_p');
+
+    -- Max_tokens
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'max_tokens', 
+           'Maximum number of tokens to generate. The total length of input tokens and output tokens is limited by the model context length.', 
+           'integer', '1', '4096', '1024', 3
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'max_tokens');
+
+    -- Frequency_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'frequency_penalty', 
+           'Reduces repetition by penalizing tokens based on how frequently they''ve appeared in the text so far. Higher values decrease repetition.', 
+           'number', '-2.0', '2.0', '0.0', 4
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'frequency_penalty');
+
+    -- Presence_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt35_id, 'presence_penalty', 
+           'Reduces repetition by penalizing tokens that have appeared at all in the text so far. Higher values increase the model''s likelihood to talk about new topics.', 
+           'number', '-2.0', '2.0', '0.0', 5
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt35_id AND param_name = 'presence_penalty');
+
+    -- Common parameters for GPT-4
+    -- Temperature
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'temperature', 
+           'Controls randomness in token selection. Lower values make output more deterministic and focused (0 is deterministic), higher values make output more random and creative.', 
+           'number', '0.0', '2.0', '0.7', 1
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'temperature');
+
+    -- Top_p
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'top_p', 
+           'Controls diversity via nucleus sampling. The model considers tokens with top_p probability mass. 0.1 means only the tokens comprising the top 10% probability are considered.', 
+           'number', '0.0', '1.0', '1.0', 2
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'top_p');
+
+    -- Max_tokens
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'max_tokens', 
+           'Maximum number of tokens to generate. The total length of input tokens and output tokens is limited by the model context length.', 
+           'integer', '1', '8192', '1500', 3
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'max_tokens');
+
+    -- Frequency_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'frequency_penalty', 
+           'Reduces repetition by penalizing tokens based on how frequently they''ve appeared in the text so far. Higher values decrease repetition.', 
+           'number', '-2.0', '2.0', '0.0', 4
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'frequency_penalty');
+
+    -- Presence_penalty
+    INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+    SELECT gpt4_id, 'presence_penalty', 
+           'Reduces repetition by penalizing tokens that have appeared at all in the text so far. Higher values increase the model''s likelihood to talk about new topics.', 
+           'number', '-2.0', '2.0', '0.0', 5
+    WHERE NOT EXISTS (SELECT 1 FROM model_parameter WHERE model_id = gpt4_id AND param_name = 'presence_penalty');
+END $$;
+-----------
+
+>>> ./docker/postgres/init/archive/test_data.sql
+insert into model (model_name, model_provider, model_api_url, comment) values ('Test model', 'Model Test Inc', 'https://example.com/api','This is here to test things.') returning id;
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES (
+  1,
+  '{"temperature": 0.7, "max_tokens": 150, "top_p": 0.9}',
+  'Sample config for testing',
+  now()
+);
+insert into entity_summary (model_configuration_id, entity, entity_id, summary, created_at)
+values (
+1, 'ranked_books',3,'This book was less than wonderful.',now()
+);
+insert into entity_summary (model_configuration_id, entity, entity_id, summary, created_at)
+values (
+1, 'ranked_books',3,'I thought it was okay.',now()
+);
+
+-----------
+
+>>> ./docker/postgres/init/archive/top100of21st.sql
+INSERT INTO book_rank_source (org_name, publish_date) VALUES ('New York Times','2024-07-08') RETURNING id;
+
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,1,'My Brilliant Friend','Elena Ferrante',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,2,'The Warmth of Other Suns','Isabel Wilkerson',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,3,'Wolf Hall','Hilary Mantel',2009);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,4,'The Known World','Edward P. Jones',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,5,'The Corrections','Jonathan Franzen',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,6,'2666','Roberto Bolaño',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,7,'The Underground Railroad','Colson Whitehead',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,8,'Austerlitz','W.G. Sebald',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,9,'Never Let Me Go','Kazuo Ishiguro',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,10,'Gilead','Marilynne Robinson',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,11,'The Brief Wondrous Life of Oscar Wao','Junot Díaz',2007);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,12,'The publish_year of Magical Thinking','Joan Didion',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,13,'The Road','Cormac McCarthy',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,14,'Outline','Rachel Cusk',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,15,'Pachinko','Min Jin Lee',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,16,'The Amazing Adventures of Kavalier & Clay','Michael Chabon',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,17,'The Sellout','Paul Beatty',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,18,'Lincoln in the Bardo','George Saunders',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,19,'Say Nothing','Patrick Radden Keefe',2019);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,20,'Erasure','Percival Everett',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,21,'Evicted','Matthew Desmond',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,22,'Behind the Beautiful Forevers','Katherine Boo',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,23,'Hateship, Friendship, Courtship, Loveship, Marriage','Alice Munro',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,24,'The Overstory','Richard Powers',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,25,'Random Family','Adrian Nicole LeBlanc',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,26,'Atonement','Ian McEwan',2002);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,27,'Americanah','Chimamanda Ngozi Adichie',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,28,'Cloud Atlas','David Mitchell',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,29,'The Last Samurai','Helen DeWitt',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,30,'Sing, Unburied, Sing','Jesmyn Ward',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,31,'White Teeth','Zadie Smith',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,32,'The Line of Beauty','Alan Hollinghurst',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,33,'Salvage the Bones','Jesmyn Ward',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,34,'Citizen','Claudia Rankine',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,35,'Fun Home','Alison Bechdel',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,36,'Between the World and Me','Ta-Nehisi Coates',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,37,'The publish_years','Annie Ernaux',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,38,'The Savage Detectives','Roberto Bolaño',2007);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,39,'A Visit From the Goon Squad','Jennifer Egan',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,40,'H Is for Hawk','Helen Macdonald',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,41,'Small Things Like These','Claire Keegan',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,42,'A Brief History of Seven Killings','Marlon James',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,43,'Postwar','Tony Judt',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,44,'The Fifth Season','N. K. Jemisin',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,45,'The Argonauts','Maggie Nelson',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,46,'The Goldfinch','Donna Tartt',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,47,'A Mercy','Toni Morrison',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,48,'Persepolis','Marjane Satrapi',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,49,'The Vegetarian','Han Kang',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,50,'Trust','Hernan Diaz',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,51,'Life After Life','Kate Atkinson',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,52,'Train Dreams','Denis Johnson',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,53,'Runaway','Alice Munro',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,54,'Tenth of December','George Saunders',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,55,'The Looming Tower','Lawrence Wright',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,56,'The Flamethrowers','Rachel Kushner',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,57,'Nickel and Dimed','Barbara Ehrenreich',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,58,'Stay True','Hua Hsu',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,59,'Middlesex','Jeffrey Eugenides',2002);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,60,'Heavy','Kiese Laymon',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,61,'Demon Copperhead','Barbara Kingsolver',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,62,'10:04','Ben Lerner',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,63,'Veronica','Mary Gaitskill',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,64,'The Great Believers','Rebecca Makkai',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,65,'The Plot Against America','Philip Roth',2004);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,66,'We the Animals','Justin Torres',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,67,'Far From the Tree','Andrew Solomon',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,68,'The Friend','Sigrid Nunez',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,69,'The New Jim Crow','Michelle Alexander',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,70,'All Aunt Hagar''s Children','Edward P. Jones',2006);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,71,'The Copenhagen Trilogy','Tove Ditlevsen',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,72,'Secondhand Time','Svetlana Alexievich',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,73,'The Passage of Power','Robert Caro',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,74,'Olive Kitteridge','Elizabeth Strout',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,75,'Exit West','Mohsin Hamid',2017);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,76,'Tomorrow, and Tomorrow, and Tomorrow','Gabrielle Zevin',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,77,'An American Marriage','Tayari Jones',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,78,'Septology','Jon Fosse',2022);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,79,'A Manual for Cleaning Women','Lucia Berlin',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,80,'The Story of the Lost Child','Elena Ferrante',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,81,'Pulphead','John Jeremiah Sullivan',2011);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,82,'Hurricane Season','Fernanda Melchor',2020);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,83,'When We Cease to Understand the World','Benjamín Labatut',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,84,'The Emperor of All Maladies','Siddhartha Mukherjee',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,85,'Pastoralia','George Saunders',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,86,'Frederick Douglass','David W. Blight',2018);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,87,'Detransition, Baby','Torrey Peters',2021);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,88,'The Collected Stories of Lydia Davis','Lydia Davis',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,89,'The Return','Hisham Matar',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,90,'The Sympathizer','Viet Thanh Nguyen',2015);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,91,'The Human Stain','Philip Roth',2000);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,92,'The Days of Abandonment','Elena Ferrante',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,93,'Station Eleven','Emily St. John Mandel',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,94,'On Beauty','Zadie Smith',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,95,'Bring Up the Bodies','Hilary Mantel',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,96,'Wayward Lives, Beautiful Experiments','Saidiya Hartman',2019);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,97,'Men We Reaped','Jesmyn Ward',2013);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,98,'Bel Canto','Ann Patchett',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,99,'How to Be Both','Ali Smith',2014);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,100,'Tree of Smoke','Denis Johnson',2007);
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/book_rank_source.sql
+INSERT INTO book_rank_source (id, org_name, publish_date) VALUES (1,'New York Times','2024-07-08') RETURNING id;
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/entity_test_data.sql
+-- Initial test data for books table
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM books WHERE name = 'To Kill a Mockingbird') THEN
+        INSERT INTO books (name, author_name, publish_year, attributes, created_at, updated_at)
+        VALUES ('To Kill a Mockingbird', 'Harper Lee', '1960',
+                '{"genre": "Fiction", "tags": ["classic", "southern"], "rank": 1, "pages": 281}',
+                NOW(), NOW());
+END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM books WHERE name = '1984') THEN
+        INSERT INTO books (name, author_name, publish_year, attributes, created_at, updated_at)
+        VALUES ('1984', 'George Orwell', '1949',
+                '{"genre": "Dystopian", "tags": ["political", "classic"], "rank": 2, "pages": 328}',
+                NOW(), NOW());
+END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM books WHERE name = 'The Great Gatsby') THEN
+        INSERT INTO books (name, author_name, publish_year, attributes, created_at, updated_at)
+        VALUES ('The Great Gatsby', 'F. Scott Fitzgerald', '1925',
+                '{"genre": "Fiction", "tags": ["classic", "american"], "rank": 3, "pages": 180}',
+                NOW(), NOW());
+END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM books WHERE name = 'Pride and Prejudice') THEN
+        INSERT INTO books (name, author_name, publish_year, attributes, created_at, updated_at)
+        VALUES ('Pride and Prejudice', 'Jane Austen', '1813',
+                '{"genre": "Romance", "tags": ["classic", "regency"], "rank": 4, "pages": 432}',
+                NOW(), NOW());
+END IF;
+END
+$$;
+
+-- Initial test data for people table
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM people WHERE name = 'Harper Lee') THEN
+        INSERT INTO people (name, email, birth_date, occupation, attributes, created_at, updated_at)
+        VALUES ('Harper Lee', 'harper.lee@example.com', '1926-04-28', 'Author',
+                '{"nationality": "American", "awards": ["Pulitzer Prize"], "biography": "Nelle Harper Lee was an American novelist..."}',
+                NOW(), NOW());
+END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM people WHERE name = 'George Orwell') THEN
+        INSERT INTO people (name, email, birth_date, occupation, attributes, created_at, updated_at)
+        VALUES ('George Orwell', 'george.orwell@example.com', '1903-06-25', 'Author',
+                '{"nationality": "British", "real_name": "Eric Arthur Blair", "biography": "English novelist and essayist..."}',
+                NOW(), NOW());
+END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM people WHERE name = 'F. Scott Fitzgerald') THEN
+        INSERT INTO people (name, email, birth_date, occupation, attributes, created_at, updated_at)
+        VALUES ('F. Scott Fitzgerald', 'scott.fitzgerald@example.com', '1896-09-24', 'Author',
+                '{"nationality": "American", "biography": "American novelist, essayist, and short story writer..."}',
+                NOW(), NOW());
+END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM people WHERE name = 'Jane Austen') THEN
+        INSERT INTO people (name, email, birth_date, occupation, attributes, created_at, updated_at)
+        VALUES ('Jane Austen', 'jane.austen@example.com', '1775-12-16', 'Author',
+                '{"nationality": "British", "biography": "English novelist known primarily for her six major novels..."}',
+                NOW(), NOW());
+END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM people WHERE name = 'John Smith') THEN
+        INSERT INTO people (name, email, birth_date, occupation, attributes, created_at, updated_at)
+        VALUES ('John Smith', 'john.smith@example.com', '1980-05-15', 'Literary Critic',
+                '{"education": "PhD in Literature", "specialization": "20th Century Fiction"}',
+                NOW(), NOW());
+END IF;
+END
+$$;
+
+-- Initial test data for summaries table
+DO $$
+DECLARE
+book_id_mockingbird BIGINT;
+    book_id_1984 BIGINT;
+BEGIN
+    -- Get IDs of existing books
+SELECT id INTO book_id_mockingbird FROM books WHERE name = 'To Kill a Mockingbird';
+SELECT id INTO book_id_1984 FROM books WHERE name = '1984';
+
+IF book_id_mockingbird IS NOT NULL AND NOT EXISTS (SELECT 1 FROM summaries WHERE entity_type = 'book' AND entity_id = book_id_mockingbird) THEN
+        INSERT INTO summaries (name, entity_type, entity_id, content, source, attributes, created_at, updated_at)
+        VALUES ('Classic Summary of To Kill a Mockingbird', 'book', book_id_mockingbird,
+                'Set in the 1930s Alabama, this novel follows Scout Finch and her father Atticus, a lawyer defending a Black man accused of raping a white woman. The story explores themes of racial injustice, moral growth, and the loss of innocence.',
+                'ClassicLiteratureGuide',
+                '{"quality_score": 4.8, "word_count": 42}',
+                NOW(), NOW());
+END IF;
+
+    IF book_id_mockingbird IS NOT NULL AND NOT EXISTS (SELECT 1 FROM summaries WHERE entity_type = 'book' AND entity_id = book_id_mockingbird AND source = 'AI-Generated') THEN
+        INSERT INTO summaries (name, entity_type, entity_id, content, source, attributes, created_at, updated_at)
+        VALUES ('AI Summary of To Kill a Mockingbird', 'book', book_id_mockingbird,
+                'Harper Lee''s powerful novel explores racial prejudice and moral complexity through the eyes of a young girl in Depression-era Alabama. The narrative centers around her father''s legal defense of a Black man falsely accused of a crime, revealing deep social divides and the importance of empathy and moral courage.',
+                'AI-Generated',
+                '{"quality_score": 4.2, "word_count": 51, "model": "GPT-4"}',
+                NOW(), NOW());
+END IF;
+
+    IF book_id_1984 IS NOT NULL AND NOT EXISTS (SELECT 1 FROM summaries WHERE entity_type = 'book' AND entity_id = book_id_1984) THEN
+        INSERT INTO summaries (name, entity_type, entity_id, content, source, attributes, created_at, updated_at)
+        VALUES ('Summary of 1984', 'book', book_id_1984,
+                'Orwell''s dystopian masterpiece depicts a totalitarian future where Big Brother watches everyone and the Thought Police suppress individualism. The protagonist Winston Smith rebels against the Party by falling in love and keeping a diary, only to face the horrific consequences of challenging the system.',
+                'LiteraryArchive',
+                '{"quality_score": 4.9, "word_count": 47}',
+                NOW(), NOW());
+END IF;
+END
+$$;
+
+-- Initial test data for relationships table
+DO $$
+DECLARE
+book_id_mockingbird BIGINT;
+    book_id_1984 BIGINT;
+    book_id_gatsby BIGINT;
+    book_id_pride BIGINT;
+    person_id_lee BIGINT;
+    person_id_orwell BIGINT;
+    person_id_fitzgerald BIGINT;
+    person_id_austen BIGINT;
+    person_id_smith BIGINT;
+BEGIN
+    -- Get IDs of existing entities
+SELECT id INTO book_id_mockingbird FROM books WHERE name = 'To Kill a Mockingbird';
+SELECT id INTO book_id_1984 FROM books WHERE name = '1984';
+SELECT id INTO book_id_gatsby FROM books WHERE name = 'The Great Gatsby';
+SELECT id INTO book_id_pride FROM books WHERE name = 'Pride and Prejudice';
+
+SELECT id INTO person_id_lee FROM people WHERE name = 'Harper Lee';
+SELECT id INTO person_id_orwell FROM people WHERE name = 'George Orwell';
+SELECT id INTO person_id_fitzgerald FROM people WHERE name = 'F. Scott Fitzgerald';
+SELECT id INTO person_id_austen FROM people WHERE name = 'Jane Austen';
+SELECT id INTO person_id_smith FROM people WHERE name = 'John Smith';
+
+-- Author relationships
+IF person_id_lee IS NOT NULL AND book_id_mockingbird IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM relationships WHERE relationship_type = 'authored' AND source_type = 'person' AND source_id = person_id_lee AND target_type = 'book' AND target_id = book_id_mockingbird) THEN
+        INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+        VALUES ('Harper Lee authored To Kill a Mockingbird', 'authored', 'person', person_id_lee, 'book', book_id_mockingbird,
+                '{"year": 1960, "publisher": "J. B. Lippincott & Co."}',
+                NOW(), NOW());
+END IF;
+
+    IF person_id_orwell IS NOT NULL AND book_id_1984 IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM relationships WHERE relationship_type = 'authored' AND source_type = 'person' AND source_id = person_id_orwell AND target_type = 'book' AND target_id = book_id_1984) THEN
+        INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+        VALUES ('George Orwell authored 1984', 'authored', 'person', person_id_orwell, 'book', book_id_1984,
+                '{"year": 1949, "publisher": "Secker & Warburg"}',
+                NOW(), NOW());
+END IF;
+
+    IF person_id_fitzgerald IS NOT NULL AND book_id_gatsby IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM relationships WHERE relationship_type = 'authored' AND source_type = 'person' AND source_id = person_id_fitzgerald AND target_type = 'book' AND target_id = book_id_gatsby) THEN
+        INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+        VALUES ('F. Scott Fitzgerald authored The Great Gatsby', 'authored', 'person', person_id_fitzgerald, 'book', book_id_gatsby,
+                '{"year": 1925, "publisher": "Charles Scribner''s Sons"}',
+                NOW(), NOW());
+END IF;
+
+    IF person_id_austen IS NOT NULL AND book_id_pride IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM relationships WHERE relationship_type = 'authored' AND source_type = 'person' AND source_id = person_id_austen AND target_type = 'book' AND target_id = book_id_pride) THEN
+        INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+        VALUES ('Jane Austen authored Pride and Prejudice', 'authored', 'person', person_id_austen, 'book', book_id_pride,
+                '{"year": 1813, "publisher": "T. Egerton, Whitehall"}',
+                NOW(), NOW());
+END IF;
+
+    -- Critic relationship
+    IF person_id_smith IS NOT NULL AND book_id_mockingbird IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM relationships WHERE relationship_type = 'reviewed' AND source_type = 'person' AND source_id = person_id_smith AND target_type = 'book' AND target_id = book_id_mockingbird) THEN
+        INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+        VALUES ('John Smith reviewed To Kill a Mockingbird', 'reviewed', 'person', person_id_smith, 'book', book_id_mockingbird,
+                '{"date": "2022-05-10", "rating": 5, "publication": "Literary Review Quarterly"}',
+                NOW(), NOW());
+END IF;
+
+    -- Books similarity relationship
+    IF book_id_1984 IS NOT NULL AND book_id_mockingbird IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM relationships WHERE relationship_type = 'similar_themes' AND source_type = 'book' AND source_id = book_id_1984 AND target_type = 'book' AND target_id = book_id_mockingbird) THEN
+        INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+        VALUES ('1984 and To Kill a Mockingbird share themes', 'similar_themes', 'book', book_id_1984, 'book', book_id_mockingbird,
+                '{"themes": ["social justice", "moral courage"], "similarity_score": 0.72}',
+                NOW(), NOW());
+END IF;
+
+    -- Books series/collection relationship (example of a meta-relationship)
+    IF book_id_1984 IS NOT NULL AND book_id_gatsby IS NOT NULL AND book_id_mockingbird IS NOT NULL AND
+       NOT EXISTS (SELECT 1 FROM relationships WHERE relationship_type = 'collection' AND source_type = 'book' AND source_id = book_id_1984 AND target_type = 'collection' AND target_id = 1) THEN
+        -- Create a virtual "collection" entity first in relationships
+        IF NOT EXISTS (SELECT 1 FROM relationships WHERE name = 'Classic Fiction Collection' AND relationship_type = 'collection_definition') THEN
+            INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+            VALUES ('Classic Fiction Collection', 'collection_definition', 'collection', 1, 'collection', 1,
+                    '{"description": "Notable classic fiction works", "curator": "Literary Canon Committee"}',
+                    NOW(), NOW());
+END IF;
+
+        -- Now add books to this collection
+INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+VALUES ('1984 in Classic Fiction Collection', 'collection', 'book', book_id_1984, 'collection', 1,
+        '{"added_date": "2023-01-15", "position": 1}',
+        NOW(), NOW());
+
+INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+VALUES ('The Great Gatsby in Classic Fiction Collection', 'collection', 'book', book_id_gatsby, 'collection', 1,
+        '{"added_date": "2023-01-15", "position": 2}',
+        NOW(), NOW());
+
+INSERT INTO relationships (name, relationship_type, source_type, source_id, target_type, target_id, attributes, created_at, updated_at)
+VALUES ('To Kill a Mockingbird in Classic Fiction Collection', 'collection', 'book', book_id_mockingbird, 'collection', 1,
+        '{"added_date": "2023-01-15", "position": 3}',
+        NOW(), NOW());
+END IF;
+END
+$$;
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/model.sql
+INSERT INTO model (model_name, model_provider, model_api_url, comment)
+VALUES
+    ('GPT-3.5-Turbo', 'OpenAI', 'https://api.openai.com/v1/chat/completions', 'General purpose model, good balance of capabilities and cost'),
+    ('GPT-4o', 'OpenAI', 'https://api.openai.com/v1/chat/completions', 'Advanced model with strong reasoning and instruction-following'),
+    ('Claude 3 Opus', 'Anthropic', 'https://api.anthropic.com/v1/messages', 'Anthropic''s most capable model for complex tasks'),
+    ('Claude 3 Sonnet', 'Anthropic', 'https://api.anthropic.com/v1/messages', 'Balanced performance and cost for most use cases'),
+    ('Llama-3-70b', 'Meta', 'https://api.together.xyz/v1/completions', 'Open source model with strong general capabilities');
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/model_configuration.sql
+
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'),
+        '{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.95}',
+        'Default configuration for general usage',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'),
+        '{"temperature": 0.2, "max_tokens": 2048, "top_p": 0.9, "frequency_penalty": 0.5}',
+        'More deterministic output, good for factual responses',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'),
+        '{"temperature": 1.2, "max_tokens": 500, "top_p": 1.0, "presence_penalty": 0.6}',
+        'Creative configuration for brainstorming and idea generation',
+        NOW()
+    );
+
+-- GPT-4o configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-4o'),
+        '{"temperature": 0.7, "max_tokens": 1500, "top_p": 0.95}',
+        'Default configuration for balanced performance',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'GPT-4o'),
+        '{"temperature": 0.1, "max_tokens": 4000, "top_p": 0.8}',
+        'Academic configuration optimized for detailed explanations',
+        NOW()
+    );
+
+-- Claude 3 Opus configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'Claude 3 Opus'),
+        '{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}',
+        'Balanced configuration for general usage',
+        NOW()
+    ),
+    (
+        (SELECT id FROM model WHERE model_name = 'Claude 3 Opus'),
+        '{"temperature": 0.3, "max_tokens": 2000, "top_p": 0.85, "top_k": 40}',
+        'Precise configuration for technical content',
+        NOW()
+    );
+
+-- Claude 3 Sonnet configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'),
+        '{"temperature": 0.7, "max_tokens": 1024, "top_p": 0.9}',
+        'Default configuration for everyday use',
+        NOW()
+    );
+
+-- Llama-3-70b configurations
+INSERT INTO model_configuration (model_id, model_config, comment, created_at)
+VALUES
+    (
+        (SELECT id FROM model WHERE model_name = 'Llama-3-70b'),
+        '{"temperature": 0.8, "max_tokens": 1024, "top_p": 0.9, "repetition_penalty": 1.1}',
+        'Default open source model configuration',
+        NOW()
+    );
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/model_parameter.sql
+-- GPT-3.5-Turbo parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'temperature', 'Controls randomness: Lowering results in less random completions', 'float', '0', '2', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'max_tokens', 'The maximum number of tokens in the response', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'top_p', 'Controls diversity via nucleus sampling', 'float', '0', '1', '0.95', 3),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'presence_penalty', 'Penalizes repeated tokens', 'float', '-2', '2', '0', 4),
+    ((SELECT id FROM model WHERE model_name = 'GPT-3.5-Turbo'), 'frequency_penalty', 'Penalizes frequent tokens', 'float', '-2', '2', '0', 5);
+
+-- GPT-4o parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'temperature', 'Controls randomness: Lowering results in less random completions', 'float', '0', '2', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'max_tokens', 'The maximum number of tokens in the response', 'integer', '1', '8192', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'top_p', 'Controls diversity via nucleus sampling', 'float', '0', '1', '0.95', 3),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'presence_penalty', 'Penalizes repeated tokens', 'float', '-2', '2', '0', 4),
+    ((SELECT id FROM model WHERE model_name = 'GPT-4o'), 'frequency_penalty', 'Penalizes frequent tokens', 'float', '-2', '2', '0', 5);
+
+-- Claude 3 Opus parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'temperature', 'Controls randomness in generation', 'float', '0', '1', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'max_tokens', 'Maximum tokens to generate', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'top_p', 'Nucleus sampling parameter', 'float', '0', '1', '0.9', 3),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Opus'), 'top_k', 'Limits vocabulary to top K tokens', 'integer', '1', '500', '50', 4);
+
+-- Claude 3 Sonnet parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'temperature', 'Controls randomness in generation', 'float', '0', '1', '0.7', 1),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'max_tokens', 'Maximum tokens to generate', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'top_p', 'Nucleus sampling parameter', 'float', '0', '1', '0.9', 3),
+    ((SELECT id FROM model WHERE model_name = 'Claude 3 Sonnet'), 'top_k', 'Limits vocabulary to top K tokens', 'integer', '1', '500', '50', 4);
+
+-- Llama-3-70b parameters
+INSERT INTO model_parameter (model_id, param_name, description, data_type, min_value, max_value, default_value, display_order)
+VALUES
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'temperature', 'Controls randomness', 'float', '0', '2', '0.8', 1),
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'max_tokens', 'Maximum tokens to generate', 'integer', '1', '4096', '1024', 2),
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'top_p', 'Nucleus sampling parameter', 'float', '0', '1', '0.9', 3),
+    ((SELECT id FROM model WHERE model_name = 'Llama-3-70b'), 'repetition_penalty', 'Penalizes repetition', 'float', '1', '2', '1.1', 4);
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/ranked_books.sql
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,1,'My Brilliant Friend','Elena Ferrante',2012);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,2,'The Warmth of Other Suns','Isabel Wilkerson',2010);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,3,'Wolf Hall','Hilary Mantel',2009);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,4,'The Known World','Edward P. Jones',2003);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,5,'The Corrections','Jonathan Franzen',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,6,'2666','Roberto Bolaño',2008);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,7,'The Underground Railroad','Colson Whitehead',2016);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,8,'Austerlitz','W.G. Sebald',2001);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,9,'Never Let Me Go','Kazuo Ishiguro',2005);
+INSERT INTO ranked_books (list_id, rank, title, author_name, publish_year) VALUES (1,10,'Gilead','Marilynne Robinson',2004);
+
+-----------
+
+>>> ./docker/postgres/init/subscripts/schema.sql
+
+CREATE SEQUENCE IF NOT EXISTS messages_id_seq;
+CREATE SEQUENCE IF NOT EXISTS book_rank_source_id_seq;
+CREATE SEQUENCE IF NOT EXISTS ranked_books_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_configuration_id_seq;
+CREATE SEQUENCE IF NOT EXISTS entity_summary_id_seq;
+CREATE SEQUENCE IF NOT EXISTS model_parameter_id_seq;
+
+CREATE TABLE IF NOT EXISTS public.messages
+(
+    id bigint NOT NULL DEFAULT nextval('messages_id_seq'::regclass),
+    content text COLLATE pg_catalog."default",
+    created_at timestamp with time zone,
+    CONSTRAINT messages_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS public.book_rank_source
+(
+    id bigint NOT NULL DEFAULT nextval('book_rank_source_id_seq'::regclass),
+    org_name character varying(200) COLLATE pg_catalog."default",
+    publish_date date,
+    CONSTRAINT book_rank_source_pkey PRIMARY KEY (id)
+);
+
+
+CREATE TABLE IF NOT EXISTS public.ranked_books
+(
+    id bigint NOT NULL DEFAULT nextval('ranked_books_id_seq'::regclass),
+    list_id bigint,
+    rank integer,
+    title character varying(200) COLLATE pg_catalog."default",
+    author_name character varying(200) COLLATE pg_catalog."default",
+    publish_year character varying(10) COLLATE pg_catalog."default",
+    CONSTRAINT ranked_books_pkey PRIMARY KEY (id),
+    CONSTRAINT ranked_books_list_id_fkey FOREIGN KEY (list_id)
+        REFERENCES public.book_rank_source (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE TABLE IF NOT EXISTS public.model
+(
+    id bigint NOT NULL DEFAULT nextval('model_id_seq'::regclass),
+    model_name character varying(200) COLLATE pg_catalog."default",
+    model_provider character varying(200) COLLATE pg_catalog."default",
+    model_api_url character varying(200) COLLATE pg_catalog."default",
+    comment text COLLATE pg_catalog."default",
+    CONSTRAINT model_pkey PRIMARY KEY (id)
+);
+
+CREATE TABLE IF NOT EXISTS public.model_configuration
+(
+    id bigint NOT NULL DEFAULT nextval('model_configuration_id_seq'::regclass),
+    model_id bigint,
+    model_config jsonb,
+    comment text COLLATE pg_catalog."default",
+    created_at timestamp with time zone,
+    CONSTRAINT model_configuration_pkey PRIMARY KEY (id),
+    CONSTRAINT model_configuration_model_id_fkey FOREIGN KEY (model_id)
+        REFERENCES public.model (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+
+CREATE TABLE IF NOT EXISTS public.entity_summary
+(
+    id bigint NOT NULL DEFAULT nextval('entity_summary_id_seq'::regclass),
+    model_configuration_id bigint,
+    type character varying(200) COLLATE pg_catalog."default",
+    entity_id bigint,
+    summary text COLLATE pg_catalog."default",
+    created_at timestamp with time zone,
+    batch_id bigint,
+    CONSTRAINT entity_summary_pkey PRIMARY KEY (id),
+    CONSTRAINT entity_summary_model_configuration_id_fkey FOREIGN KEY (model_configuration_id)
+        REFERENCES public.model_configuration (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE TABLE IF NOT EXISTS public.model_parameter
+(
+    id bigint NOT NULL DEFAULT nextval('model_parameter_id_seq'::regclass),
+    model_id bigint NOT NULL,
+    param_name character varying(100) COLLATE pg_catalog."default" NOT NULL,
+    description text COLLATE pg_catalog."default",
+    data_type character varying(50) COLLATE pg_catalog."default",
+    min_value character varying(50) COLLATE pg_catalog."default",
+    max_value character varying(50) COLLATE pg_catalog."default", 
+    default_value character varying(100) COLLATE pg_catalog."default",
+    display_order integer,
+    CONSTRAINT model_parameter_pkey PRIMARY KEY (id),
+    CONSTRAINT model_parameter_model_id_fkey FOREIGN KEY (model_id)
+        REFERENCES public.model (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE CASCADE,
+    CONSTRAINT model_parameter_model_id_param_name_key UNIQUE (model_id, param_name)
+);
+
+CREATE TABLE IF NOT EXISTS public.books (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    author_name VARCHAR(255),
+    publish_year VARCHAR(50),
+    attributes JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE  IF NOT EXISTS public.summaries (
+   id BIGSERIAL PRIMARY KEY,
+   name VARCHAR(255) NOT NULL,
+    batch_id bigint,
+    model_configuration_id bigint,
+   entity_type VARCHAR(100) NOT NULL,
+   entity_id BIGINT NOT NULL,
+   content TEXT,
+   source VARCHAR(255),
+   attributes JSONB NOT NULL DEFAULT '{}',
+   created_at TIMESTAMP NOT NULL,
+   updated_at TIMESTAMP NOT NULL,
+    CONSTRAINT summary_pkey PRIMARY KEY (id),
+    CONSTRAINT summary_model_configuration_id_fkey FOREIGN KEY (model_configuration_id)
+    REFERENCES public.model_configuration (id) MATCH SIMPLE
+    ON UPDATE NO ACTION
+    ON DELETE NO ACTION
+
+    );
+
+CREATE TABLE  IF NOT EXISTS public.relationships (
+   id BIGSERIAL PRIMARY KEY,
+   name VARCHAR(255) NOT NULL,
+   relationship_type VARCHAR(100) NOT NULL,
+   source_type VARCHAR(100) NOT NULL,
+   source_id BIGINT NOT NULL,
+   target_type VARCHAR(100) NOT NULL,
+   target_id BIGINT NOT NULL,
+   attributes JSONB NOT NULL DEFAULT '{}',
+   created_at TIMESTAMP NOT NULL,
+   updated_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE  IF NOT EXISTS public.people (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255),
+    birth_date DATE,
+    occupation VARCHAR(255),
+    attributes JSONB NOT NULL DEFAULT '{}',
+    created_at TIMESTAMP NOT NULL,
+    updated_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_books_author ON books(author_name);
+CREATE INDEX idx_books_year ON books(publish_year);
+CREATE INDEX idx_summaries_entity ON summaries(entity_type, entity_id);
+CREATE INDEX idx_relationships_type ON relationships(relationship_type);
+CREATE INDEX idx_relationships_source ON relationships(source_type, source_id);
+CREATE INDEX idx_relationships_target ON relationships(target_type, target_id);
+CREATE INDEX idx_people_email ON people(email);
+CREATE INDEX idx_people_occupation ON people(occupation);
+
+CREATE INDEX idx_books_attributes ON books USING GIN (attributes);
+CREATE INDEX idx_summaries_attributes ON summaries USING GIN (attributes);
+CREATE INDEX idx_relationships_attributes ON relationships USING GIN (attributes);
+CREATE INDEX idx_people_attributes ON people USING GIN (attributes);
+
+-----------
+
+>>> ./backend/.mvn/wrapper/MavenWrapperDownloader.java
+/*
+ * Copyright 2007-present the original author or authors.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+import java.net.*;
+import java.io.*;
+import java.nio.channels.*;
+import java.util.Properties;
+
+public class MavenWrapperDownloader {
+
+    private static final String WRAPPER_VERSION = "0.5.6";
+    /**
+     * Default URL to download the maven-wrapper.jar from, if no 'downloadUrl' is provided.
+     */
+    private static final String DEFAULT_DOWNLOAD_URL = "https://repo.maven.apache.org/maven2/io/takari/maven-wrapper/"
+        + WRAPPER_VERSION + "/maven-wrapper-" + WRAPPER_VERSION + ".jar";
+
+    /**
+     * Path to the maven-wrapper.properties file, which might contain a downloadUrl property to
+     * use instead of the default one.
+     */
+    private static final String MAVEN_WRAPPER_PROPERTIES_PATH =
+            ".mvn/wrapper/maven-wrapper.properties";
+
+    /**
+     * Path where the maven-wrapper.jar will be saved to.
+     */
+    private static final String MAVEN_WRAPPER_JAR_PATH =
+            ".mvn/wrapper/maven-wrapper.jar";
+
+    /**
+     * Name of the property which should be used to override the default download url for the wrapper.
+     */
+    private static final String PROPERTY_NAME_WRAPPER_URL = "wrapperUrl";
+
+    public static void main(String args[]) {
+        System.out.println("- Downloader started");
+        File baseDirectory = new File(args[0]);
+        System.out.println("- Using base directory: " + baseDirectory.getAbsolutePath());
+
+        // If the maven-wrapper.properties exists, read it and check if it contains a custom
+        // wrapperUrl parameter.
+        File mavenWrapperPropertyFile = new File(baseDirectory, MAVEN_WRAPPER_PROPERTIES_PATH);
+        String url = DEFAULT_DOWNLOAD_URL;
+        if(mavenWrapperPropertyFile.exists()) {
+            FileInputStream mavenWrapperPropertyFileInputStream = null;
+            try {
+                mavenWrapperPropertyFileInputStream = new FileInputStream(mavenWrapperPropertyFile);
+                Properties mavenWrapperProperties = new Properties();
+                mavenWrapperProperties.load(mavenWrapperPropertyFileInputStream);
+                url = mavenWrapperProperties.getProperty(PROPERTY_NAME_WRAPPER_URL, url);
+            } catch (IOException e) {
+                System.out.println("- ERROR loading '" + MAVEN_WRAPPER_PROPERTIES_PATH + "'");
+            } finally {
+                try {
+                    if(mavenWrapperPropertyFileInputStream != null) {
+                        mavenWrapperPropertyFileInputStream.close();
+                    }
+                } catch (IOException e) {
+                    // Ignore ...
+                }
+            }
+        }
+        System.out.println("- Downloading from: " + url);
+
+        File outputFile = new File(baseDirectory.getAbsolutePath(), MAVEN_WRAPPER_JAR_PATH);
+        if(!outputFile.getParentFile().exists()) {
+            if(!outputFile.getParentFile().mkdirs()) {
+                System.out.println(
+                        "- ERROR creating output directory '" + outputFile.getParentFile().getAbsolutePath() + "'");
+            }
+        }
+        System.out.println("- Downloading to: " + outputFile.getAbsolutePath());
+        try {
+            downloadFileFromURL(url, outputFile);
+            System.out.println("Done");
+            System.exit(0);
+        } catch (Throwable e) {
+            System.out.println("- Error downloading");
+            e.printStackTrace();
+            System.exit(1);
+        }
+    }
+
+    private static void downloadFileFromURL(String urlString, File destination) throws Exception {
+        if (System.getenv("MVNW_USERNAME") != null && System.getenv("MVNW_PASSWORD") != null) {
+            String username = System.getenv("MVNW_USERNAME");
+            char[] password = System.getenv("MVNW_PASSWORD").toCharArray();
+            Authenticator.setDefault(new Authenticator() {
+                @Override
+                protected PasswordAuthentication getPasswordAuthentication() {
+                    return new PasswordAuthentication(username, password);
+                }
+            });
+        }
+        URL website = new URL(urlString);
+        ReadableByteChannel rbc;
+        rbc = Channels.newChannel(website.openStream());
+        FileOutputStream fos = new FileOutputStream(destination);
+        fos.getChannel().transferFrom(rbc, 0, Long.MAX_VALUE);
+        fos.close();
+        rbc.close();
+    }
+
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/config/AsyncConfig.java
+package net.sampsoftware.genai.config;
+
+import org.springframework.aop.interceptor.AsyncUncaughtExceptionHandler;
+import org.springframework.aop.interceptor.SimpleAsyncUncaughtExceptionHandler;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.scheduling.annotation.AsyncConfigurer;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
+
+@Configuration
+@EnableAsync
+public class AsyncConfig implements AsyncConfigurer {
+
+    @Override
+    public Executor getAsyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(5);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(25);
+        executor.setThreadNamePrefix("book-processor-");
+        executor.initialize();
+        return executor;
+    }
+
+    @Override
+    public AsyncUncaughtExceptionHandler getAsyncUncaughtExceptionHandler() {
+        return new SimpleAsyncUncaughtExceptionHandler();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/config/WebConfig.java
+package net.sampsoftware.genai.config;
+
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.filter.CommonsRequestLoggingFilter;
+import org.springframework.web.servlet.config.annotation.CorsRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+
+@Configuration
+public class WebConfig implements WebMvcConfigurer {
+    @SuppressWarnings("null")
+    @Override
+    public void addCorsMappings(CorsRegistry registry) {
+        registry.addMapping("/**")
+                .allowedOrigins("http://localhost:3000")
+                .allowedMethods("*")
+                .allowedHeaders("*");
+    }
+    
+    @Bean
+    public CommonsRequestLoggingFilter requestLoggingFilter() {
+        CommonsRequestLoggingFilter filter = new CommonsRequestLoggingFilter();
+        filter.setIncludeQueryString(true);
+        filter.setIncludePayload(true);
+        filter.setMaxPayloadLength(10000);
+        filter.setBeforeMessagePrefix("REQUEST DATA : ");
+        filter.setAfterMessagePrefix("RESPONSE DATA : ");
+        return filter;
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/BatchSummaryController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.BatchSummaryRequest;
+import net.sampsoftware.genai.service.AsyncBookSummaryService;
+
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import lombok.extern.slf4j.Slf4j;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/batch-summary")
+@RequiredArgsConstructor
+public class BatchSummaryController {
+
+    private final AsyncBookSummaryService aiService;
+
+    @PostMapping
+    public ResponseEntity<?> generateSummaries(@RequestBody BatchSummaryRequest request) {
+        return ResponseEntity.ok(aiService.generateResponse(request.prompt(), request.modelConfigurationId()));
+
+    }
+
+    // Error response DTO
+    record ErrorResponse(String error, String message) {}
+
+
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/BookController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.Book;
+import net.sampsoftware.genai.repository.BookRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Optional;
+
+@RestController
+@RequestMapping("/api/books")
+@RequiredArgsConstructor
+public class BookController {
+    private final BookRepository bookRepository;
+
+    @GetMapping
+    public List<Book> getAllBooks() {
+        return bookRepository.findAll();
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<Book> getBookById(@PathVariable Long id) {
+        Optional<Book> book = bookRepository.findById(id);
+        return book.map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public Book createBook(@RequestBody Book book) {
+        return bookRepository.save(book);
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<Book> updateBook(@PathVariable Long id, @RequestBody Book bookDetails) {
+        Optional<Book> bookOptional = bookRepository.findById(id);
+
+        if (bookOptional.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Book book = bookOptional.get();
+        book.setName(bookDetails.getName());
+        book.setAuthorName(bookDetails.getAuthorName());
+        book.setPublishYear(bookDetails.getPublishYear());
+        book.setAttributes(bookDetails.getAttributes());
+
+        Book updatedBook = bookRepository.save(book);
+        return ResponseEntity.ok(updatedBook);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteBook(@PathVariable Long id) {
+        if (!bookRepository.existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+
+        bookRepository.deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/search")
+    public List<Book> searchBooks(
+            @RequestParam(required = false) String authorName,
+            @RequestParam(required = false) String publishYear) {
+
+        if (authorName != null && !authorName.isEmpty()) {
+            return bookRepository.findByAuthorName(authorName);
+        } else if (publishYear != null && !publishYear.isEmpty()) {
+            return bookRepository.findByPublishYear(publishYear);
+        } else {
+            return bookRepository.findAll();
+        }
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/BookRankSourceController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.model.BookRankSource;
+import net.sampsoftware.genai.repository.BookRankSourceRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/sources")
+public class BookRankSourceController {
+    private final BookRankSourceRepository repo;
+    public BookRankSourceController(BookRankSourceRepository repo) { this.repo = repo; }
+
+    @GetMapping public List<BookRankSource> all() { return repo.findAll(); }
+    @GetMapping("/{id}") public BookRankSource one(@PathVariable Long id) { return repo.findById(id).orElseThrow(); }
+    @PostMapping public BookRankSource create(@RequestBody BookRankSource s) { return repo.save(s); }
+    @PutMapping("/{id}") public BookRankSource update(@PathVariable Long id, @RequestBody BookRankSource s) {
+        s.setId(id); return repo.save(s);
+    }
+    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { repo.deleteById(id); }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ChatController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.dto.ChatRequest;
+import net.sampsoftware.genai.dto.ChatResponse;
+import net.sampsoftware.genai.service.ChatService;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/chat")
+public class ChatController {
+
+    private final ChatService chatService;
+    public ChatController(ChatService chatService) {
+        this.chatService = chatService;
+    }
+
+    @PostMapping
+    public ChatResponse chat(@RequestBody ChatRequest request) {
+        String reply = chatService.chat(request.getContent());
+        return new ChatResponse(reply);
+    }
+
+}
+
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/CrudDtoController.java
+package net.sampsoftware.genai.controller;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+public abstract class CrudDtoController<T, D, ID> {
+
+    protected abstract JpaRepository<T, ID> getRepository();
+    protected abstract D toDto(T entity);
+    protected abstract T toEntity(D dto);
+
+    @GetMapping
+    public List<D> list() {
+        return getRepository().findAll().stream()
+                .map(this::toDto)
+                .collect(Collectors.toList());
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<D> get(@PathVariable ID id) {
+        Optional<T> result = getRepository().findById(id);
+        return result.map(t -> ResponseEntity.ok(toDto(t)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping
+    public ResponseEntity<D> create(@RequestBody D dto) {
+        T saved = getRepository().save(toEntity(dto));
+        return ResponseEntity.ok(toDto(saved));
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<D> update(@PathVariable ID id, @RequestBody D dto) {
+        if (!getRepository().existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        T updated = toEntity(dto);
+        return ResponseEntity.ok(toDto(getRepository().save(updated)));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@PathVariable ID id) {
+        if (!getRepository().existsById(id)) {
+            return ResponseEntity.notFound().build();
+        }
+        getRepository().deleteById(id);
+        return ResponseEntity.noContent().build();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/CytoscapeController.java
+
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.CytoscapeDto;
+import net.sampsoftware.genai.service.CytoscapeService;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+@RestController
+@RequestMapping("/api/cytoscape")
+@RequiredArgsConstructor
+public class CytoscapeController {
+
+    private final CytoscapeService cytoscapeService;
+
+    @GetMapping("/books-summaries")
+    public CytoscapeDto getBooksSummariesGraph() {
+        return cytoscapeService.getBooksSummariesGraph();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/MessageController.java
+// MessageController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.model.Message;
+import net.sampsoftware.genai.repository.MessageRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/messages")
+public class MessageController {
+    private final MessageRepository repo;
+    public MessageController(MessageRepository repo) { this.repo = repo; }
+
+    @GetMapping public List<Message> all() { return repo.findAll(); }
+    @PostMapping public Message create(@RequestBody Message m) { return repo.save(m); }
+    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { repo.deleteById(id); }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ModelConfigurationController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.ModelConfigurationDto;
+import net.sampsoftware.genai.mapper.ModelConfigurationMapper;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.repository.ModelConfigurationRepository;
+
+import org.springframework.http.ResponseEntity;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/model-configurations")
+@RequiredArgsConstructor
+public class ModelConfigurationController extends CrudDtoController<ModelConfiguration, ModelConfigurationDto, Long> {
+
+    private final ModelConfigurationRepository configRepository;
+    private final ModelConfigurationMapper configMapper;
+
+    @Override
+    protected JpaRepository<ModelConfiguration, Long> getRepository() {
+        return configRepository;
+    }
+
+    @Override
+    protected ModelConfigurationDto toDto(ModelConfiguration entity) {
+        return configMapper.toDto(entity);
+    }
+
+    @Override
+    protected ModelConfiguration toEntity(ModelConfigurationDto dto) {
+        return configMapper.toEntity(dto);
+    }
+
+    @Override
+    @GetMapping("/{id}")
+    public ResponseEntity<ModelConfigurationDto> get(@PathVariable Long id) {
+        var config = configRepository.findByIdWithModel(id);
+        return config
+            .map(configMapper::toDto)
+            .map(ResponseEntity::ok)
+            .orElse(ResponseEntity.notFound().build());
+    }
+
+    @Override
+    @GetMapping
+    public List<ModelConfigurationDto> list() {
+        var entities = ((ModelConfigurationRepository)getRepository()).findAllWithModels();
+        
+        var dtos = entities.stream()
+                    .map(this::toDto)
+                    .collect(Collectors.toList());
+        
+        return dtos;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ModelController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.ModelDto;
+import net.sampsoftware.genai.mapper.ModelMapper;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.repository.ModelRepository;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.web.bind.annotation.*;
+
+@RestController
+@RequestMapping("/api/models")
+@RequiredArgsConstructor
+public class ModelController extends CrudDtoController<Model, ModelDto, Long> {
+
+    private final ModelRepository modelRepository;
+    private final ModelMapper modelMapper;
+
+    @Override
+    protected JpaRepository<Model, Long> getRepository() {
+        return modelRepository;
+    }
+
+    @Override
+    protected ModelDto toDto(Model entity) {
+        return modelMapper.toDto(entity);
+    }
+
+    @Override
+    protected Model toEntity(ModelDto dto) {
+        return modelMapper.toEntity(dto);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/ModelParameterController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.ModelParameterDto;
+import net.sampsoftware.genai.service.ModelParameterService;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/model-parameters")
+@RequiredArgsConstructor
+
+public class ModelParameterController {
+
+    private final ModelParameterService parameterService;
+
+    @GetMapping("/model/{modelId}")
+    public List<ModelParameterDto> getParametersForModel(@PathVariable Long modelId) {
+        List<ModelParameterDto> ret = parameterService.getParametersForModel(modelId);
+        log.trace(Integer.toString(ret.size()));
+        return ret;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/PersonController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.PersonRecord;
+import net.sampsoftware.genai.model.Person;
+import net.sampsoftware.genai.service.PersonService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/people")
+@RequiredArgsConstructor
+public class PersonController {
+    private final PersonService personService;
+
+    @GetMapping
+    public ResponseEntity<List<PersonRecord>> getAllPeople() {
+        List<Person> people = personService.getAllPeople();
+        List<PersonRecord> records = people.stream()
+                .map(this::toRecord)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(records);
+    }
+
+    @GetMapping("/{id}")
+    public ResponseEntity<PersonRecord> getPerson(@PathVariable Long id) {
+        Person person = personService.getPerson(id);
+        return ResponseEntity.ok(toRecord(person));
+    }
+
+    @PostMapping
+    public ResponseEntity<PersonRecord> createPerson(@RequestBody PersonRecord record) {
+        Person person = fromRecord(record);
+        Person created = personService.createPerson(person);
+        return ResponseEntity.ok(toRecord(created));
+    }
+
+    @GetMapping("/search")
+    public ResponseEntity<List<PersonRecord>> searchPeople(
+            @RequestParam(required = false) String email,
+            @RequestParam(required = false) String occupation) {
+
+        List<Person> people;
+
+        if (email != null && !email.isBlank()) {
+            return personService.findByEmail(email)
+                    .map(person -> ResponseEntity.ok(List.of(toRecord(person))))
+                    .orElse(ResponseEntity.ok(List.of()));
+        } else if (occupation != null && !occupation.isBlank()) {
+            people = personService.findByOccupation(occupation);
+        } else {
+            people = personService.getAllPeople();
+        }
+
+        List<PersonRecord> records = people.stream()
+                .map(this::toRecord)
+                .collect(Collectors.toList());
+
+        return ResponseEntity.ok(records);
+    }
+
+    private PersonRecord toRecord(Person person) {
+        return new PersonRecord(
+                person.getId(),
+                person.getName(),
+                person.getEmail(),
+                person.getBirthDate(),
+                person.getOccupation(),
+                person.getAttributes(),
+                person.getCreatedAt(),
+                person.getUpdatedAt()
+        );
+    }
+
+    private Person fromRecord(PersonRecord record) {
+        Person person = new Person();
+        person.setName(record.name());
+        person.setEmail(record.email());
+        person.setBirthDate(record.birthDate());
+        person.setOccupation(record.occupation());
+        person.setAttributes(record.attributes());
+        return person;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/RankedBookController.java
+package net.sampsoftware.genai.controller;
+
+import net.sampsoftware.genai.model.RankedBook;
+import net.sampsoftware.genai.repository.RankedBookRepository;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+
+@RestController
+@RequestMapping("/api/rnakedbooks")
+public class RankedBookController {
+    private final RankedBookRepository repo;
+    public RankedBookController(RankedBookRepository repo) { this.repo = repo; }
+
+    @GetMapping public List<RankedBook> all() { return repo.findAll(); }
+    @GetMapping("/list/{sourceId}") public List<RankedBook> byList(@PathVariable Long sourceId) {
+        return repo.findBySourceIdOrderByRankAsc(sourceId);
+    }
+    @PostMapping public RankedBook create(@RequestBody RankedBook b) { return repo.save(b); }
+    @PutMapping("/{id}") public RankedBook update(@PathVariable Long id, @RequestBody RankedBook b) {
+        b.setId(id); return repo.save(b);
+    }
+    @DeleteMapping("/{id}") public void delete(@PathVariable Long id) { repo.deleteById(id); }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/RelationshipController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.dto.RelationshipRecord;
+import net.sampsoftware.genai.model.Relationship;
+import net.sampsoftware.genai.service.RelationshipService;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@RestController
+@RequestMapping("/api/relationships")
+@RequiredArgsConstructor
+public class RelationshipController {
+    private final RelationshipService relationshipService;
+
+    @PostMapping
+    public ResponseEntity<RelationshipRecord> createRelationship(@RequestBody RelationshipRecord record) {
+        Relationship relationship = fromRecord(record);
+        Relationship created = relationshipService.createRelationship(relationship);
+        return ResponseEntity.ok(toRecord(created));
+    }
+
+    @GetMapping("/entity")
+    public ResponseEntity<List<RelationshipRecord>> getRelationshipsForEntity(
+            @RequestParam String entityType,
+            @RequestParam Long entityId) {
+        List<Relationship> relationships = relationshipService.getRelationshipsForEntity(entityType, entityId);
+        List<RelationshipRecord> records = relationships.stream()
+                .map(this::toRecord)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(records);
+    }
+
+    @GetMapping("/type/{relationshipType}")
+    public ResponseEntity<List<RelationshipRecord>> getRelationshipsByType(
+            @PathVariable String relationshipType) {
+        List<Relationship> relationships = relationshipService.getRelationshipsByType(relationshipType);
+        List<RelationshipRecord> records = relationships.stream()
+                .map(this::toRecord)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(records);
+    }
+
+    @GetMapping("/type/all")
+    public ResponseEntity<List<RelationshipRecord>> getAllRelationships() {
+        List<Relationship> relationships = relationshipService.getAllRelationships();
+        List<RelationshipRecord> records = relationships.stream()
+                .map(this::toRecord)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(records);
+    }
+
+    private RelationshipRecord toRecord(Relationship relationship) {
+        return new RelationshipRecord(
+                relationship.getId(),
+                relationship.getName(),
+                relationship.getRelationshipType(),
+                relationship.getSourceType(),
+                relationship.getSourceId(),
+                relationship.getTargetType(),
+                relationship.getTargetId(),
+                relationship.getAttributes(),
+                relationship.getCreatedAt(),
+                relationship.getUpdatedAt()
+        );
+    }
+
+    private Relationship fromRecord(RelationshipRecord record) {
+        Relationship relationship = new Relationship();
+        relationship.setName(record.name());
+        relationship.setRelationshipType(record.relationshipType());
+        relationship.setSourceType(record.sourceType());
+        relationship.setSourceId(record.sourceId());
+        relationship.setTargetType(record.targetType());
+        relationship.setTargetId(record.targetId());
+        relationship.setAttributes(record.attributes());
+        return relationship;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/controller/SummaryController.java
+package net.sampsoftware.genai.controller;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.SummaryRecords.DetailedSummaryRecord;
+import net.sampsoftware.genai.dto.SummaryRecords.SummaryRecord;
+import net.sampsoftware.genai.exception.ResourceNotFoundException;
+import net.sampsoftware.genai.model.Summary;
+import net.sampsoftware.genai.service.SummaryService;
+
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
+
+import java.util.List;
+
+@Slf4j
+@RestController
+@RequestMapping("/api/summaries")
+@RequiredArgsConstructor
+@Validated
+public class SummaryController {
+
+    private final SummaryService summaryService;
+
+    @GetMapping("/entity/{entityType}")
+    public ResponseEntity<List<DetailedSummaryRecord>> getSummariesForEntity(
+            @PathVariable String entityType,
+            @RequestParam List<Long> entityIds
+    ) {
+        log.debug("Finding summaries for entityType: {}, entityIds: {}", entityType, entityIds);
+        try {
+            if (entityType == null || entityType.isBlank()) {
+                return ResponseEntity.badRequest().build();
+            }
+            if (entityIds == null || entityIds.isEmpty()) {
+                return ResponseEntity.badRequest().build();
+            }
+
+            List<DetailedSummaryRecord> summaries = summaryService.findByEntityTypeAndIds(entityType, entityIds);
+            return ResponseEntity.ok(summaries);
+        } catch (Exception e) {
+            log.error("Error fetching summaries for entityType: {}, entityIds: {}", entityType, entityIds, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
+        }
+    }
+
+    @GetMapping()
+    public ResponseEntity<List<DetailedSummaryRecord>> getSummaries(
+    ) {
+        log.debug("Finding summaries");
+        try {
+            List<DetailedSummaryRecord> summaries = summaryService.findAllDetailedSummaryRecords();
+            return ResponseEntity.ok(summaries);
+        } catch (Exception e) {
+            log.error("Error fetching summaries", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
+        }
+    }
+
+    @GetMapping("/types")
+    public ResponseEntity<List<String>> getAllEntityTypes() {
+        log.debug("Fetching all entity types");
+        try {
+            List<String> types = summaryService.findAllEntityTypes();
+            return ResponseEntity.ok(types);
+        } catch (Exception e) {
+            log.error("Error fetching entity types", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching entity types", e);
+        }
+    }
+
+    @PostMapping
+    public ResponseEntity<SummaryRecord> createSummary(@RequestBody @Validated Summary summary) {
+        log.debug("Creating new summary: {}", summary);
+        try {
+            SummaryRecord created = summaryService.create(summary);
+            return ResponseEntity.status(HttpStatus.CREATED).body(created);
+        } catch (Exception e) {
+            log.error("Error creating summary", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error creating summary", e);
+        }
+    }
+
+    @PutMapping("/{id}")
+    public ResponseEntity<SummaryRecord> updateSummary(@PathVariable Long id, @RequestBody @Validated Summary summary) {
+        log.debug("Updating summary with ID: {}", id);
+        try {
+            summary.setId(id);
+            SummaryRecord updated = summaryService.update(summary);
+            return ResponseEntity.ok(updated);
+        } catch (ResourceNotFoundException e) {
+            log.warn("Put, Summary not found with ID: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error updating summary with ID: {}", id, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error updating summary", e);
+        }
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteSummary(@PathVariable Long id) {
+        log.debug("Deleting summary with ID: {}", id);
+        try {
+            summaryService.delete(id);
+            return ResponseEntity.noContent().build();
+        } catch (ResourceNotFoundException e) {
+            log.warn("Delete, Summary not found with ID: {}", id);
+            return ResponseEntity.notFound().build();
+        } catch (Exception e) {
+            log.error("Error deleting summary with ID: {}", id, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error deleting summary", e);
+        }
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/BatchSummaryRequest.java
+package net.sampsoftware.genai.dto;
+
+public record BatchSummaryRequest(
+    Long modelConfigurationId,
+    String prompt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/BatchSummaryResponse.java
+package net.sampsoftware.genai.dto;
+
+public record BatchSummaryResponse(
+    int successCount,
+    int failureCount
+) {}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ChatRequest.java
+package net.sampsoftware.genai.dto;
+
+public class ChatRequest {
+    private String content;
+
+    public ChatRequest() {}
+
+    public ChatRequest(String content) {
+        this.content = content;
+    }
+
+    public String getContent() {
+        return content;
+    }
+
+    public void setContent(String content) {
+        this.content = content;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ChatResponse.java
+package net.sampsoftware.genai.dto;
+
+public class ChatResponse {
+    private String reply;
+
+    public ChatResponse() {}
+
+    public ChatResponse(String reply) {
+        this.reply = reply;
+    }
+
+    public String getReply() {
+        return reply;
+    }
+
+    public void setReply(String reply) {
+        this.reply = reply;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/CytoscapeDto.java
+package net.sampsoftware.genai.dto;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class CytoscapeDto {
+    private Elements elements;
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Elements {
+        private List<CytoscapeNode> nodes;
+        private List<CytoscapeEdge> edges;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CytoscapeNode {
+        private NodeData data;
+        private String classes;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class NodeData {
+        private String id;
+        private String label;
+        private String type;
+        private Object details;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class CytoscapeEdge {
+        private EdgeData data;
+    }
+
+    @Data
+    @NoArgsConstructor
+    @AllArgsConstructor
+    @Builder
+    public static class EdgeData {
+        private String id;
+        private String source;
+        private String target;
+        private String label;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/EntityReference.java
+package net.sampsoftware.genai.dto;
+
+/**
+ * A record representing a reference to any entity by its type and ID.
+ */
+public record EntityReference(
+        String entityType,
+        Long entityId,
+        String name
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelCallRequest.java
+package net.sampsoftware.genai.dto;
+
+public record ModelCallRequest(
+    Long modelConfigurationId,
+    String prompt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelCallResponse.java
+package net.sampsoftware.genai.dto;
+
+/**
+ * DTO for responses from model invocations
+ */
+public record ModelCallResponse(
+    String response
+) {}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelConfigurationDto.java
+package net.sampsoftware.genai.dto;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.time.Instant;
+
+public record ModelConfigurationDto(
+        Long id,
+        Long modelId,
+        String modelName,
+        String modelProvider,
+        JsonNode modelConfig,
+        String comment,
+        Instant createdAt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelDto.java
+package net.sampsoftware.genai.dto;
+
+import lombok.Data;
+
+@Data
+public class ModelDto {
+    private Long id;
+    private String modelName;
+    private String modelProvider;
+    private String modelApiUrl;
+    private String comment;
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/ModelParameterDto.java
+package net.sampsoftware.genai.dto;
+
+/**
+ * Data Transfer Object for model parameters using Java 17+ record
+ */
+public record ModelParameterDto(
+        Long id,
+        Long modelId,
+        String paramName,
+        String description,
+        String dataType,
+        String minValue,
+        String maxValue,
+        String defaultValue,
+        Integer displayOrder
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/PersonRecord.java
+package net.sampsoftware.genai.dto;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+public record PersonRecord(
+        Long id,
+        String name,
+        String email,
+        LocalDate birthDate,
+        String occupation,
+        JsonNode attributes,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/RelationshipRecord.java
+package net.sampsoftware.genai.dto;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import java.time.LocalDateTime;
+
+public record RelationshipRecord(
+        Long id,
+        String name,
+        String relationshipType,
+        String sourceType,
+        Long sourceId,
+        String targetType,
+        Long targetId,
+        JsonNode attributes,
+        LocalDateTime createdAt,
+        LocalDateTime updatedAt
+) {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/dto/SummaryRecords.java
+package net.sampsoftware.genai.dto;
+
+import java.time.LocalDateTime;
+import com.fasterxml.jackson.databind.JsonNode;
+
+public class SummaryRecords {
+
+    public record SummaryRecord(
+            Long id,
+            Long entityId,
+            String entityType,
+            String content,
+            LocalDateTime createdAt
+    ) {}
+
+    public record DetailedSummaryRecord(
+            Long id,
+            Long entityId,
+            String entityType,
+            String entityName,
+            String entityDetails,
+            String content,
+            String modelName,
+            String modelProvider,
+            Long modelId,
+            Long modelConfigurationId,
+            JsonNode modelConfig,
+            String configComment,
+            LocalDateTime createdAt
+    ) {}
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/exception/ResourceNotFoundException.java
+package net.sampsoftware.genai.exception;
+
+public class ResourceNotFoundException extends RuntimeException {
+    public ResourceNotFoundException(String message) {
+        super(message);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/GenaiApplication.java
+package net.sampsoftware.genai;
+
+import org.springframework.boot.WebApplicationType;
+import org.springframework.boot.builder.SpringApplicationBuilder;
+import org.springframework.scheduling.annotation.EnableAsync;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+@EnableAsync
+public class GenaiApplication {
+    public static void main(String[] args) {
+        new SpringApplicationBuilder(GenaiApplication.class)
+            .web(WebApplicationType.SERVLET) // 🔒 Explicitly use Servlet mode
+            .run(args);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/mapper/ModelConfigurationMapper.java
+package net.sampsoftware.genai.mapper;
+
+import net.sampsoftware.genai.dto.ModelConfigurationDto;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import org.mapstruct.*;
+
+@Mapper(componentModel = "spring")
+public interface ModelConfigurationMapper {
+
+    @Mapping(source = "model.id", target = "modelId")
+    @Mapping(source = "model.modelName", target = "modelName")
+    @Mapping(source = "model.modelProvider", target = "modelProvider")
+    ModelConfigurationDto toDto(ModelConfiguration entity);
+
+    @Mapping(target = "model", source = "modelId", qualifiedByName = "modelFromId")
+    @Mapping(target = "createdAt", ignore = true)  // Let entity default it
+    ModelConfiguration toEntity(ModelConfigurationDto dto);
+
+    @Named("modelFromId")
+    default Model modelFromId(Long id) {
+        if (id == null) return null;
+        Model model = new Model();
+        model.setId(id);
+        return model;
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/mapper/ModelMapper.java
+package net.sampsoftware.genai.mapper;
+
+import net.sampsoftware.genai.dto.ModelDto;
+import net.sampsoftware.genai.model.Model;
+import org.mapstruct.Mapper;
+
+@Mapper(componentModel = "spring")
+public interface ModelMapper {
+    ModelDto toDto(Model entity);
+    Model toEntity(ModelDto dto);
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/BaseEntity.java
+package net.sampsoftware.genai.model;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import jakarta.persistence.*;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.LocalDateTime;
+
+@MappedSuperclass
+@Data
+@NoArgsConstructor
+public abstract class BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @Column(nullable = false)
+    private String name;
+
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private JsonNode attributes = JsonNodeFactory.instance.objectNode();
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Book.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "books")
+@Data
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class Book extends BaseEntity {
+    private String authorName;
+    private String publishYear;
+    private String name;
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/BookRankSource.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import java.time.LocalDate;
+import java.util.List;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
+import com.fasterxml.jackson.annotation.JsonIgnore;
+
+@Entity
+@Table(name = "book_rank_source")
+@JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+public class BookRankSource {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String orgName;
+    private LocalDate publishDate;
+
+    @OneToMany(mappedBy = "source", cascade = CascadeType.ALL, orphanRemoval = true)
+    @JsonIgnore
+    private List<RankedBook> rankedBooks;
+
+    // Getters and setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public String getOrgName() { return orgName; }
+    public void setOrgName(String orgName) { this.orgName = orgName; }
+    public LocalDate getPublishDate() { return publishDate; }
+    public void setPublishDate(LocalDate publishDate) { this.publishDate = publishDate; }
+    public List<RankedBook> getRankedBooks() { return rankedBooks; }
+    public void setRankedBooks(List<RankedBook> rankedBooks) { this.rankedBooks = rankedBooks; }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Message.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "messages")
+@EntityListeners(AuditingEntityListener.class)
+public class Message {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String content;
+
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdDate;
+
+    // Getters and setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+
+    public String getContent() { return content; }
+    public void setContent(String content) { this.content = content; }
+
+    public LocalDateTime getCreatedDate() { return createdDate; }
+    public void setCreatedDate(LocalDateTime createdDate) { this.createdDate = createdDate; }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Model.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+public class Model {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private String modelName;
+    private String modelProvider;
+    private String modelApiUrl;
+    private String comment;
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/ModelConfiguration.java
+package net.sampsoftware.genai.model;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.Instant;
+
+@Entity
+@Table(name = "model_configuration")
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ModelConfiguration {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "model_id")
+    private Model model;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
+    private JsonNode modelConfig;
+
+    private String comment;
+
+    @Builder.Default
+    private Instant createdAt = Instant.now();
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/ModelParameter.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+
+@Entity
+@Table(name = "model_parameter")
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
+@Builder
+public class ModelParameter {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "model_id")
+    private Model model;
+    
+    private String paramName;
+    private String description;
+    private String dataType; // e.g., "number", "string"
+    private String minValue;
+    private String maxValue;
+    private String defaultValue;
+    private Integer displayOrder;
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Person.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+import java.time.LocalDate;
+
+@Entity
+@Table(name = "people")
+@Data
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class Person extends BaseEntity {
+    private String email;
+    private LocalDate birthDate;
+    private String occupation;
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/RankedBook.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "ranked_books")
+public class RankedBook {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    private Integer rank;
+    private String title;
+    private String authorName;
+    private String publishYear;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "list_id")
+    private BookRankSource source;
+
+    // Getters and setters
+    public Long getId() { return id; }
+    public void setId(Long id) { this.id = id; }
+    public Integer getRank() { return rank; }
+    public void setRank(Integer rank) { this.rank = rank; }
+    public String getTitle() { return title; }
+    public void setTitle(String title) { this.title = title; }
+    public String getAuthorName() { return authorName; }
+    public void setAuthorName(String authorName) { this.authorName = authorName; }
+    public String getPublishYear() { return publishYear; }
+    public void setPublishYear(String publishYear) { this.publishYear = publishYear; }
+    public BookRankSource getSource() { return source; }
+    public void setSource(BookRankSource source) { this.source = source; }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Relationship.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.Table;
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+import lombok.NoArgsConstructor;
+
+@Entity
+@Table(name = "relationships")
+@Data
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+public class Relationship extends BaseEntity {
+    @Column(name = "relationship_type", nullable = false)
+    private String relationshipType;
+
+    @Column(name = "source_type", nullable = false)
+    private String sourceType;
+
+    @Column(name = "source_id", nullable = false)
+    private Long sourceId;
+
+    @Column(name = "target_type", nullable = false)
+    private String targetType;
+
+    @Column(name = "target_id", nullable = false)
+    private Long targetId;
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/model/Summary.java
+package net.sampsoftware.genai.model;
+
+import jakarta.persistence.*;
+import lombok.*;
+import org.hibernate.annotations.DynamicUpdate;
+
+@Entity
+@Table(name = "summaries") // Keep table name for DB compatibility
+@Data
+@NoArgsConstructor
+@EqualsAndHashCode(callSuper = true)
+@ToString(callSuper = true)
+@DynamicUpdate
+public class Summary extends BaseEntity {
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "model_configuration_id")
+    private ModelConfiguration modelConfiguration;
+
+    @Column(name = "entity_type")
+    private String entityType;
+
+    @Column(name = "entity_id")
+    private Long entityId;
+
+    @Column(name = "content", columnDefinition = "text")
+    private String content;
+
+    @Column(name = "batch_id")
+    private Long batchId;
+
+    // Custom getter for model configuration ID
+    public Long getModelConfigurationId() {
+        return modelConfiguration != null ? modelConfiguration.getId() : null;
+    }
+
+    // Manual builder pattern to work with inheritance
+    @Builder
+    public Summary(Long id, String name, ModelConfiguration modelConfiguration,
+                   String entityType, Long entityId, String content, Long batchId) {
+        super();
+        this.setId(id);
+        this.setName(name); // Name from BaseEntity
+        this.modelConfiguration = modelConfiguration;
+        this.entityType = entityType;
+        this.entityId = entityId;
+        this.content = content;
+        this.batchId = batchId;
+    }
+
+    // Helper method to get entity name (alias for base entity name)
+    public String getEntityName() {
+        return getName();
+    }
+
+    // Helper method to set entity name (alias for base entity name)
+    public void setEntityName(String entityName) {
+        setName(entityName);
+    }
+
+    // Helper method to get entity details (stored in attributes)
+    public String getEntityDetails() {
+        return getAttributes().has("details") ?
+                getAttributes().get("details").asText() : null;
+    }
+
+    // Helper method to set entity details (stored in attributes)
+    public void setEntityDetails(String details) {
+        ((com.fasterxml.jackson.databind.node.ObjectNode) getAttributes())
+                .put("details", details);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/BookRankSourceRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.BookRankSource;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface BookRankSourceRepository extends JpaRepository<BookRankSource, Long> {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/BookRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Book;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface BookRepository extends JpaRepository<Book, Long> {
+    List<Book> findByAuthorName(String authorName);
+    List<Book> findByPublishYear(String publishYear);
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/MessageRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Message;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface MessageRepository extends JpaRepository<Message, Long> {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/ModelConfigurationRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.ModelConfiguration;
+
+import java.util.List;
+import java.util.Optional;
+
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface ModelConfigurationRepository extends JpaRepository<ModelConfiguration, Long> {
+
+    @Query("SELECT c FROM ModelConfiguration c JOIN FETCH c.model WHERE c.id = :id")
+    Optional<ModelConfiguration> findByIdWithModel(@Param("id") Long id);
+
+    @Query("SELECT c FROM ModelConfiguration c JOIN FETCH c.model")
+    List<ModelConfiguration> findAllWithModels();
+
+
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/ModelParameterRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.ModelParameter;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface ModelParameterRepository extends JpaRepository<ModelParameter, Long> {
+    
+    /**
+     * Find parameters for a specific model, ordered by display order
+     */
+    List<ModelParameter> findByModelIdOrderByDisplayOrder(Long modelId);
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/ModelRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Model;
+import org.springframework.data.jpa.repository.JpaRepository;
+
+public interface ModelRepository extends JpaRepository<Model, Long> {}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/PersonRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Person;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface PersonRepository extends JpaRepository<Person, Long> {
+    Optional<Person> findByEmail(String email);
+    List<Person> findByOccupation(String occupation);
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/RankedBookRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.RankedBook;
+import org.springframework.data.jpa.repository.JpaRepository;
+import java.util.List;
+
+public interface RankedBookRepository extends JpaRepository<RankedBook, Long> {
+    List<RankedBook> findBySourceIdOrderByRankAsc(Long sourceId);
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/RelationshipRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Relationship;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface RelationshipRepository extends JpaRepository<Relationship, Long> {
+    List<Relationship> findByRelationshipType(String relationshipType);
+
+    List<Relationship> findBySourceTypeAndSourceId(String sourceType, Long sourceId);
+
+    List<Relationship> findByTargetTypeAndTargetId(String targetType, Long targetId);
+
+    @Query("SELECT r FROM Relationship r WHERE " +
+            "(r.sourceType = :entityType AND r.sourceId = :entityId) OR " +
+            "(r.targetType = :entityType AND r.targetId = :entityId)")
+    List<Relationship> findByEntity(@Param("entityType") String entityType,
+                                    @Param("entityId") Long entityId);
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/repository/SummaryRepository.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Summary;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+import org.springframework.stereotype.Repository;
+import java.util.List;
+import java.util.Optional;
+
+@Repository
+public interface SummaryRepository extends JpaRepository<Summary, Long> {
+
+    // Find one with all details
+    @Query("SELECT s FROM Summary s JOIN FETCH s.modelConfiguration mc JOIN FETCH mc.model WHERE s.id = :id")
+    Optional<Summary> findByIdWithDetails(@Param("id") Long id);
+
+    // Find all for a specific entity type
+    List<Summary> findByEntityType(String entityType);
+
+    // Find all for specific entity type and multiple entity ids
+    List<Summary> findByEntityTypeAndEntityIdIn(String entityType, List<Long> entityIds);
+
+    // Find all with model details
+    @Query("SELECT s FROM Summary s JOIN FETCH s.modelConfiguration mc JOIN FETCH mc.model")
+    List<Summary> findAllWithDetails();
+
+    // Find all by entity type with model details
+    @Query("SELECT s FROM Summary s JOIN FETCH s.modelConfiguration mc JOIN FETCH mc.model WHERE s.entityType = :entityType")
+    List<Summary> findByEntityTypeWithDetails(@Param("entityType") String entityType);
+
+    // Get all unique entity types
+    @Query("SELECT DISTINCT s.entityType FROM Summary s")
+    List<String> findAllDistinctEntityTypes();
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/AIService.java
+package net.sampsoftware.genai.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.prompt.ChatOptions;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class AIService extends BaseAiApiService {
+
+    private final ChatClient.Builder chatClientBuilder;
+
+    public String generateResponse(String promptText, ModelConfiguration modelConfig) {
+        ChatClient chatClient = buildChatClient(modelConfig);
+        
+        return executeApiCall(
+            () ->
+            chatClient.prompt()
+                .user(promptText)
+                .call()
+                .content()
+        );
+    }
+
+    public String generateResponse(String systemPrompt, String userPrompt, 
+                                 ModelConfiguration modelConfig) {
+        ChatClient chatClient = buildChatClient(modelConfig);
+        
+        return executeApiCall(
+            () ->
+            chatClient.prompt()
+                .system(systemPrompt)
+                .user(userPrompt)
+                .call()
+                .content()
+        );
+    }
+
+    private ChatClient buildChatClient(ModelConfiguration modelConfig) {
+        if (modelConfig == null || modelConfig.getModelConfig() == null) {
+            return chatClientBuilder.build();
+        }
+        
+        JsonNode configNode = modelConfig.getModelConfig();
+        
+        // Configure options based on the model configuration
+        ChatOptions.Builder optionsBuilder = ChatOptions.builder();
+        
+        if (configNode.has("temperature")) {
+            optionsBuilder.temperature(configNode.get("temperature").doubleValue());
+        }
+        
+        if (configNode.has("top_p")) {
+            optionsBuilder.topP(configNode.get("top_p").doubleValue());
+        }
+        
+        if (configNode.has("max_tokens")) {
+            optionsBuilder.maxTokens(configNode.get("max_tokens").intValue());
+        }
+        
+        return chatClientBuilder
+                .defaultOptions(optionsBuilder.build())
+                .build();
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/AsyncBookProcessor.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.model.Summary;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.model.RankedBook;
+import net.sampsoftware.genai.service.SummaryService;
+import org.springframework.scheduling.annotation.Async;
+import org.springframework.stereotype.Service;
+
+import java.util.concurrent.CompletableFuture;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AsyncBookProcessor {
+
+    private final AIService aiService;
+    private final SummaryService summaryService;
+
+    @Async
+    public CompletableFuture<Boolean> processBookAsync(
+            RankedBook book,
+            String systemPrompt,
+            ModelConfiguration modelConfiguration,
+            Long batchId
+    ) {
+        try {
+            String bookInfo = """
+            {
+                "title": "%s",
+                "authorName": "%s",
+                "publishYear": "%s",
+                "blurb": "%s"
+            }I
+            """.formatted(
+                    book.getTitle(),
+                    book.getAuthorName(),
+                    book.getPublishYear(),
+                    ""
+            );
+
+            log.trace("System prompt: {}", systemPrompt);
+            log.trace("BookInfo: {}", book);
+            log.trace("Model configuration: {}", modelConfiguration);
+            log.debug("Processing {} in batch {}",book.getAuthorName(), batchId);
+            String summaryText = aiService.generateResponse(
+                    systemPrompt,
+                    bookInfo,
+                    modelConfiguration
+            );
+            log.debug("Done {} in batch {} summary length {}", book.getAuthorName(), batchId, summaryText.length());
+            log.trace("Summary: {}", summaryText);
+
+            Summary summary = Summary.builder()
+                    .modelConfiguration(modelConfiguration)
+                    .entityType("ranked_book")
+                    .entityId(book.getId())
+                    .content(summaryText)
+                    .batchId(batchId)
+                    .build();
+
+            summaryService.save(summary);
+            return CompletableFuture.completedFuture(true);
+
+        } catch (Exception e) {
+            log.error("Error processing book {}: {}", book.getId(), e.getMessage(), e);
+            return CompletableFuture.completedFuture(false);
+        }
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/AsyncBookSummaryService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.model.RankedBook;
+import org.springframework.stereotype.Service;
+
+import java.util.List;
+import java.util.concurrent.CompletableFuture;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class AsyncBookSummaryService {
+
+    private final AIService aiService;
+    private final ModelService modelService;
+    private final BookService bookService;
+    private final AsyncBookProcessor asyncBookProcessor;
+
+    public String generateResponse(
+            String promptText,
+            Long modelConfigurationId
+    ) {
+        Long batchId = System.nanoTime();
+
+        String systemPrompt = """
+            Here is the Title, Author Name and Publishing Year of a book. Please search the web
+            and produce a summary or blurb of the book. The summary should consist of one paragraph
+            describing the genre, length and literary style of the book, as well as a summary of
+            the plot. It should not include any "spoilers" or normative comments about the book.
+        """;
+
+        ModelConfiguration modelConfiguration =
+                modelService.findConfigurationById(modelConfigurationId);
+
+        List<RankedBook> books = bookService.findAll();
+        log.debug("Processing through {} books batchId {}", books.size(), batchId);
+
+
+
+        List<CompletableFuture<Boolean>> futures = books.stream()
+                .map(book -> asyncBookProcessor.processBookAsync(
+                        book,
+                        systemPrompt,
+                        modelConfiguration,
+                        batchId
+                    )
+                )
+                .toList();
+
+        long successCount = futures.stream()
+                .map(CompletableFuture::join)
+                .filter(result -> result)
+                .count();
+        log.debug("Completed {} books batchId {}", successCount, batchId);
+
+        return String.format("Successfully processed %d of %d in batch %d",
+            successCount, books.size(), batchId
+        );
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/BaseAiApiService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.stereotype.Service;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+
+public class BaseAiApiService {
+
+   @FunctionalInterface
+    protected interface AICallFunction {
+        String call() throws Exception;
+    }
+
+    protected String executeApiCall(AICallFunction apiCall) {
+        try {
+            return apiCall.call();
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+}
+
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/BookService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.RankedBook;
+import net.sampsoftware.genai.repository.RankedBookRepository;
+
+import java.util.List;
+
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class BookService {
+    private final RankedBookRepository bookRepo;
+
+    public List<RankedBook> findAll() {
+        List<RankedBook> books = bookRepo.findAll();
+        return books;
+    }
+
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/ChatService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class ChatService {
+
+    private final AIService aiService;
+
+    public String chat(String content) {
+        // This is a simplified version that doesn't use model configurations
+        // You could enhance this to use a default model configuration
+        return aiService.generateResponse(content, null);
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/CytoscapeService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.CytoscapeDto;
+import net.sampsoftware.genai.dto.SummaryRecords.DetailedSummaryRecord;
+import net.sampsoftware.genai.model.RankedBook;
+import org.springframework.stereotype.Service;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class CytoscapeService {
+
+    private final BookService bookService;
+    private final SummaryService summaryService;
+
+    /**
+     * Generate a Cytoscape graph of books and their summaries
+     */
+    public CytoscapeDto getBooksSummariesGraph() {
+        log.debug("Generating books-summaries graph");
+
+        // Get all books and their summaries
+        List<RankedBook> books = bookService.findAll();
+        List<Long> bookIds = books.stream()
+                .map(RankedBook::getId)
+                .collect(Collectors.toList());
+
+        log.debug("Found {} books", books.size());
+
+        // Get summaries for these books
+        List<DetailedSummaryRecord> summaries = summaryService.findByEntityTypeAndIds("ranked_book", bookIds);
+        log.debug("Found {} summaries", summaries.size());
+
+        List<CytoscapeDto.CytoscapeNode> nodes = new ArrayList<>();
+        List<CytoscapeDto.CytoscapeEdge> edges = new ArrayList<>();
+
+        // Add book nodes
+        for (RankedBook book : books) {
+            nodes.add(CytoscapeDto.CytoscapeNode.builder()
+                    .data(CytoscapeDto.NodeData.builder()
+                            .id("book-" + book.getId())
+                            .label(book.getTitle())
+                            .type("book")
+                            .details(book)
+                            .build())
+                    .classes("book")
+                    .build());
+        }
+
+        // Add summary nodes and connect to books
+        for (DetailedSummaryRecord summary : summaries) {
+            String summaryId = "summary-" + summary.id();
+            String bookId = "book-" + summary.entityId();
+
+            // Add summary node
+            nodes.add(CytoscapeDto.CytoscapeNode.builder()
+                    .data(CytoscapeDto.NodeData.builder()
+                            .id(summaryId)
+                            .label(summary.modelName() + " Summary")
+                            .type("summary")
+                            .details(summary)
+                            .build())
+                    .classes("summary")
+                    .build());
+
+            // Connect summary to book
+            edges.add(CytoscapeDto.CytoscapeEdge.builder()
+                    .data(CytoscapeDto.EdgeData.builder()
+                            .id("edge-" + bookId + "-" + summaryId)
+                            .source(bookId)
+                            .target(summaryId)
+                            .label("summarizes")
+                            .build())
+                    .build());
+        }
+
+        // Group summaries by model type
+        summaries.stream()
+                .collect(Collectors.groupingBy(s -> s.modelName()))
+                .forEach((modelName, modelSummaries) -> {
+                    if (modelSummaries.size() > 1) {
+                        // Create a model node
+                        String modelId = "model-" + modelName.replaceAll("\\s+", "-").toLowerCase();
+
+                        nodes.add(CytoscapeDto.CytoscapeNode.builder()
+                                .data(CytoscapeDto.NodeData.builder()
+                                        .id(modelId)
+                                        .label(modelName)
+                                        .type("model")
+                                        .build())
+                                .classes("model")
+                                .build());
+
+                        // Connect summaries to model
+                        for (DetailedSummaryRecord summary : modelSummaries) {
+                            String summaryId = "summary-" + summary.id();
+
+                            edges.add(CytoscapeDto.CytoscapeEdge.builder()
+                                    .data(CytoscapeDto.EdgeData.builder()
+                                            .id("edge-" + modelId + "-" + summaryId)
+                                            .source(summaryId)
+                                            .target(modelId)
+                                            .label("generated-by")
+                                            .build())
+                                    .build());
+                        }
+                    }
+                });
+
+        CytoscapeDto.Elements elements = new CytoscapeDto.Elements(nodes, edges);
+        return CytoscapeDto.builder().elements(elements).build();
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/ModelParameterService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.ModelParameterDto;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.model.ModelParameter;
+import net.sampsoftware.genai.repository.ModelParameterRepository;
+import net.sampsoftware.genai.repository.ModelRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.stream.Collectors;
+
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class ModelParameterService {
+
+    private final ModelRepository modelRepository;
+    private final ModelParameterRepository modelParameterRepository;
+    
+    /**
+     * Add parameter guidance for a specific model
+     */
+    @Transactional
+    public void addParameterGuidance(Long modelId, String paramName, 
+                                   String description, String dataType,
+                                   String minValue, String maxValue, 
+                                   String defaultValue, Integer displayOrder) {
+        
+        Optional<Model> modelOpt = modelRepository.findById(modelId);
+        if (modelOpt.isEmpty()) {
+            throw new IllegalArgumentException("Model not found: " + modelId);
+        }
+        
+        ModelParameter parameter = ModelParameter.builder()
+            .model(modelOpt.get())
+            .paramName(paramName)
+            .description(description)
+            .dataType(dataType)
+            .minValue(minValue)
+            .maxValue(maxValue)
+            .defaultValue(defaultValue)
+            .displayOrder(displayOrder)
+            .build();
+            
+        modelParameterRepository.save(parameter);
+    }
+    
+    /**
+     * Get all parameters for a model as DTOs
+     */
+    @Transactional(readOnly = true)
+    public List<ModelParameterDto> getParametersForModel(Long modelId) {
+        return modelParameterRepository.findByModelIdOrderByDisplayOrder(modelId)
+            .stream()
+            .map(this::convertToDto)
+            .collect(Collectors.toList());
+    }
+    
+    /**
+     * Convert a ModelParameter entity to a DTO
+     * Safely handles the lazy-loaded model property
+     */
+    private ModelParameterDto convertToDto(ModelParameter param) {
+        return new ModelParameterDto(
+            param.getId(),
+            param.getModel().getId(),
+            param.getParamName(),
+            param.getDescription(),
+            param.getDataType(),
+            param.getMinValue(),
+            param.getMaxValue(),
+            param.getDefaultValue(),
+            param.getDisplayOrder()
+        );
+    }
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/ModelService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import net.sampsoftware.genai.repository.ModelConfigurationRepository;
+
+import java.util.Optional;
+
+import org.springframework.stereotype.Service;
+
+@Service
+@RequiredArgsConstructor
+public class ModelService {
+    private final ModelConfigurationRepository modelConfigurationRepo;
+
+
+    public ModelConfiguration findConfigurationById(Long modelConfigurationId) {
+        Optional<ModelConfiguration> modelConfigOpt = modelConfigurationRepo.findByIdWithModel(modelConfigurationId);
+        if (modelConfigOpt.isEmpty()) {
+            throw new RuntimeException("Model configuration not found");
+        }
+        ModelConfiguration modelConfig = modelConfigOpt.get();
+        return modelConfig;
+    }
+
+}
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/PersonService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.Person;
+import net.sampsoftware.genai.repository.PersonRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.Optional;
+
+@Service
+@RequiredArgsConstructor
+public class PersonService {
+    private final PersonRepository personRepository;
+
+    @Transactional
+    public Person createPerson(Person person) {
+        return personRepository.save(person);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Person> getAllPeople() {
+        return personRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public Person getPerson(Long id) {
+        return personRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Person not found: " + id));
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<Person> findByEmail(String email) {
+        return personRepository.findByEmail(email);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Person> findByOccupation(String occupation) {
+        return personRepository.findByOccupation(occupation);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/RelationshipService.java
+package net.sampsoftware.genai.service;
+
+import lombok.RequiredArgsConstructor;
+import net.sampsoftware.genai.model.Relationship;
+import net.sampsoftware.genai.repository.RelationshipRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class RelationshipService {
+    private final RelationshipRepository relationshipRepository;
+
+    @Transactional
+    public Relationship createRelationship(Relationship relationship) {
+        return relationshipRepository.save(relationship);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Relationship> getRelationshipsForEntity(String entityType, Long entityId) {
+        return relationshipRepository.findByEntity(entityType, entityId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Relationship> getRelationshipsByType(String relationshipType) {
+        return relationshipRepository.findByRelationshipType(relationshipType);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Relationship> getAllRelationships() {
+        return relationshipRepository.findAll();
+    }
+
+    @Transactional(readOnly = true)
+    public List<Relationship> getOutgoingRelationships(String sourceType, Long sourceId) {
+        return relationshipRepository.findBySourceTypeAndSourceId(sourceType, sourceId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Relationship> getIncomingRelationships(String targetType, Long targetId) {
+        return relationshipRepository.findByTargetTypeAndTargetId(targetType, targetId);
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/service/SummaryService.java
+package net.sampsoftware.genai.service;
+
+import com.fasterxml.jackson.databind.JsonNode;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import net.sampsoftware.genai.dto.SummaryRecords.DetailedSummaryRecord;
+import net.sampsoftware.genai.dto.SummaryRecords.SummaryRecord;
+import net.sampsoftware.genai.exception.ResourceNotFoundException;
+import net.sampsoftware.genai.model.Summary;
+import net.sampsoftware.genai.repository.RankedBookRepository;
+import net.sampsoftware.genai.repository.SummaryRepository;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.util.List;
+import java.util.stream.Collectors;
+
+@Slf4j
+@Service
+@RequiredArgsConstructor
+public class SummaryService {
+
+    private final SummaryRepository summaryRepository;
+    private final RankedBookRepository bookRepository;
+
+    @Transactional
+    public Summary save(Summary summary) {
+        return summaryRepository.save(summary);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DetailedSummaryRecord> findByEntityTypeAndIds(String entityType, List<Long> entityIds) {
+        return summaryRepository.findByEntityTypeAndEntityIdIn(entityType, entityIds).stream()
+                .map(this::toDetailedDto)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<DetailedSummaryRecord> findByEntityType(String entityType) {
+        return summaryRepository.findByEntityType(entityType).stream()
+                .map(this::toDetailedDto)
+                .collect(Collectors.toList());
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> findAllEntityTypes() {
+        return summaryRepository.findAllDistinctEntityTypes();
+    }
+
+    @Transactional
+    public SummaryRecord create(Summary summary) {
+        Summary saved = summaryRepository.save(summary);
+        return toSimpleDto(saved);
+    }
+
+    @Transactional(readOnly = true)
+    public List<DetailedSummaryRecord> findAllDetailedSummaryRecords() {
+        return summaryRepository.findAllWithDetails().stream()
+                .map(this::toDetailedDto)
+                .collect(Collectors.toList());
+    }
+
+
+    @Transactional
+    public SummaryRecord update(Summary summary) {
+        Summary existing = summaryRepository.findById(summary.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Summary not found with id " + summary.getId()));
+
+        // Update fields from BaseEntity
+        existing.setName(summary.getName());
+        if (summary.getAttributes() != null) {
+            existing.setAttributes(summary.getAttributes());
+        }
+
+        // Update Summary-specific fields
+        existing.setEntityId(summary.getEntityId());
+        existing.setEntityType(summary.getEntityType());
+        existing.setContent(summary.getContent());
+        existing.setModelConfiguration(summary.getModelConfiguration());
+
+        return toSimpleDto(summaryRepository.save(existing));
+    }
+
+    @Transactional
+    public void delete(Long id) {
+        if (!summaryRepository.existsById(id)) {
+            throw new ResourceNotFoundException("Summary not found with id " + id);
+        }
+        summaryRepository.deleteById(id);
+    }
+
+    // Helper methods to convert entities to DTOs
+    private SummaryRecord toSimpleDto(Summary summary) {
+        return new SummaryRecord(
+                summary.getId(),
+                summary.getEntityId(),
+                summary.getEntityType(),
+                summary.getContent(),
+                summary.getCreatedAt()
+        );
+    }
+
+    private DetailedSummaryRecord toDetailedDto(Summary summary) {
+        return new DetailedSummaryRecord(
+                summary.getId(),
+                summary.getEntityId(),
+                summary.getEntityType(),
+                summary.getName(), // Use name from BaseEntity
+                summary.getEntityDetails(), // Get from attributes
+                summary.getContent(),
+                summary.getModelConfiguration().getModel().getModelName(),
+                summary.getModelConfiguration().getModel().getModelProvider(),
+                summary.getModelConfiguration().getModel().getId(),
+                summary.getModelConfiguration().getId(),
+                summary.getModelConfiguration().getModelConfig(),
+                summary.getModelConfiguration().getComment(),
+                summary.getCreatedAt()
+        );
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/util/JsonAttributeUtil.java
+package net.sampsoftware.genai.util;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import lombok.RequiredArgsConstructor;
+import org.springframework.stereotype.Component;
+
+/**
+ * Utility class for working with JSONB attributes
+ */
+@Component
+@RequiredArgsConstructor
+public class JsonAttributeUtil {
+    private final ObjectMapper objectMapper;
+
+    /**
+     * Add or update a field in a JsonNode
+     */
+    public JsonNode setField(JsonNode node, String field, Object value) {
+        ObjectNode objectNode = node != null && node.isObject()
+                ? (ObjectNode) node
+                : objectMapper.createObjectNode();
+
+        objectNode.set(field, objectMapper.valueToTree(value));
+        return objectNode;
+    }
+
+    /**
+     * Get a field from a JsonNode as a specific type
+     */
+    public <T> T getField(JsonNode node, String field, Class<T> type) {
+        if (node == null || !node.has(field)) {
+            return null;
+        }
+
+        try {
+            return objectMapper.treeToValue(node.get(field), type);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Error converting JSON field", e);
+        }
+    }
+
+    /**
+     * Check if a JsonNode has a specific field
+     */
+    public boolean hasField(JsonNode node, String field) {
+        return node != null && node.has(field);
+    }
+
+    /**
+     * Remove a field from a JsonNode
+     */
+    public JsonNode removeField(JsonNode node, String field) {
+        if (node == null || !node.isObject()) {
+            return node;
+        }
+
+        ObjectNode objectNode = (ObjectNode) node;
+        objectNode.remove(field);
+        return objectNode;
+    }
+
+    /**
+     * Convert a Java object to a JsonNode
+     */
+    public JsonNode toJsonNode(Object value) {
+        return objectMapper.valueToTree(value);
+    }
+
+    /**
+     * Convert a JsonNode to a Java object
+     */
+    public <T> T fromJsonNode(JsonNode node, Class<T> type) {
+        try {
+            return objectMapper.treeToValue(node, type);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException("Error converting from JSON", e);
+        }
+    }
+}
+
+-----------
+
+>>> ./backend/src/main/java/net/sampsoftware/genai/web/ModelConfigurationRequest.java
+package net.sampsoftware.genai.web;
+
+import com.fasterxml.jackson.databind.JsonNode;
+
+public record ModelConfigurationRequest(
+        Long modelId,
+        JsonNode modelConfig,
+        String comment
+) {}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/controller/ModelConfigurationControllerTest.java
+package net.sampsoftware.genai.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.repository.ModelRepository;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import com.jayway.jsonpath.JsonPath;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+public class ModelConfigurationControllerTest  {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Autowired
+    private ModelRepository modelRepository;
+
+    @Test
+    void createAndFetchModelConfiguration() throws Exception {
+        // Create and save the Model entity first
+        Model model = modelRepository.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model"));
+
+        // Create config JSON
+        ObjectNode config = objectMapper.createObjectNode();
+        config.put("temperature", 0.7);
+
+        // Build JSON body for ModelConfigurationDto
+        ObjectNode body = objectMapper.createObjectNode();
+        body.put("modelId", model.getId());
+        body.put("comment", "some comment");
+        body.set("modelConfig", config);
+
+        // Create ModelConfiguration
+        String response = mockMvc.perform(post("/api/model-configurations")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body.toString()))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.id").isNumber())
+            .andReturn()
+            .getResponse()
+            .getContentAsString();
+
+        Long configId = ((Integer)JsonPath.read(response, "$.id")).longValue();
+
+        // Now GET by ID (this uses your fetch-joined method)
+        mockMvc.perform(get("/api/model-configurations/{id}", configId))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.modelName").value("gpt-4"))
+            .andExpect(jsonPath("$.modelProvider").value("openai"))
+            .andExpect(jsonPath("$.modelConfig.temperature").value(0.7));
+    }
+}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/controller/ModelControllerTest.java
+package net.sampsoftware.genai.controller;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import net.sampsoftware.genai.dto.ModelDto;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@ActiveProfiles("test")
+class ModelControllerTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    void createAndFetchModel() throws Exception {
+        ModelDto dto = new ModelDto();
+        dto.setModelName("gpt-3.5");
+        dto.setModelProvider("openai");
+        dto.setModelApiUrl("https://api.openai.com");
+        dto.setComment("test");
+
+        String json = objectMapper.writeValueAsString(dto);
+
+        String response = mockMvc.perform(post("/api/models")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").exists())
+                .andReturn().getResponse().getContentAsString();
+
+        ModelDto returned = objectMapper.readValue(response, ModelDto.class);
+        assertThat(returned.getModelName()).isEqualTo("gpt-3.5");
+
+        mockMvc.perform(get("/api/models/" + returned.getId()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.modelProvider").value("openai"));
+    }
+}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/repository/ModelConfigurationRepositoryTest.java
+package net.sampsoftware.genai.repository;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import net.sampsoftware.genai.model.Model;
+import net.sampsoftware.genai.model.ModelConfiguration;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+
+import java.time.Instant;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+public class ModelConfigurationRepositoryTest {
+
+    @Autowired
+    private ModelConfigurationRepository configRepo;
+
+    @Autowired
+    private ModelRepository modelRepo;
+
+    @Autowired
+    private ObjectMapper objectMapper;
+
+    @Test
+    void canSaveAndLoadModelConfiguration() {
+        Model model = modelRepo.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", ""));
+
+        ObjectNode configJson = objectMapper.createObjectNode();
+        configJson.put("temperature", 0.7);
+
+        ModelConfiguration config = ModelConfiguration.builder()
+            .model(model)
+            .modelConfig(configJson)
+            .comment("Initial config")
+            .createdAt(Instant.now())
+            .build();
+
+        ModelConfiguration saved = configRepo.save(config);
+        assertThat(saved.getId()).isNotNull();
+        ModelConfiguration loaded = configRepo.findById(saved.getId()).orElseThrow();
+        assertThat(loaded.getModel().getId()).isEqualTo(model.getId());
+        assertThat(loaded.getComment()).isEqualTo("Initial config");
+        assertThat(loaded.getModelConfig().get("temperature").asDouble()).isEqualTo(0.7);
+
+    }
+}
+
+-----------
+
+>>> ./backend/src/test/java/net/sampsoftware/genai/repository/ModelRepositoryTest.java
+package net.sampsoftware.genai.repository;
+
+import net.sampsoftware.genai.model.Model;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+@SpringBootTest
+public class ModelRepositoryTest  {
+
+    @Autowired
+    private ModelRepository modelRepository;
+
+    @Test
+    void canSaveAndFindModel() {
+        Model model = new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model");
+        Model saved = modelRepository.save(model);
+
+        assertThat(saved.getId()).isNotNull();
+        assertThat(modelRepository.findById(saved.getId())).contains(saved);
+    }
+}
+-----------
