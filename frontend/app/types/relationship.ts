@@ -1,4 +1,5 @@
 import {Attributes} from "@/app/types/common";
+import type {DetailedSummary} from "@/app/types/summary";
 
 export interface Relationship {
     id: number;
@@ -11,4 +12,9 @@ export interface Relationship {
     createdAt: string;
     updatedAt: string;
     attributes: Attributes;
+}
+
+export interface RelatedItems {
+    relationships: Relationship[];
+    summaries: DetailedSummary[];
 }

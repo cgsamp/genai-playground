@@ -13,3 +13,9 @@ export type ApiError = {
 };
 
 export type Attributes = Record<string, unknown>;
+
+export interface SelectedEntity {
+    id: number;
+    type: 'book' | 'person' | 'summary' | 'relationship';
+    name: string;
+}

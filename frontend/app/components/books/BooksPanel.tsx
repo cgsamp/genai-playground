@@ -20,7 +20,10 @@ interface Book {
 interface Summary {
     id: number;
     entityId: number;
-    summary: string;
+    entityType: string;
+    entityName?: string;
+    entityDetails?: string;
+    content: string;  // Changed from 'summary' to 'content'
     modelName: string;
     modelProvider: string;
     modelId: number;
@@ -50,9 +53,22 @@ const BooksPanel: React.FC = () => {
 
             if (books.length > 0) {
                 const bookIds = books.map(book => book.id).join(',');
-                const summariesResponse = await axios.get<Summary[]>(
-                    `http://localhost:8080/api/summaries?entityType=ranked_book&entityIds=${bookIds}`
-                );
+
+                // Try both entity types to ensure we get summaries
+                let summariesResponse;
+                try {
+                    // First try 'book' entity type
+                    summariesResponse = await axios.get<Summary[]>(
+                        `http://localhost:8080/api/summaries/entity/book?entityIds=${bookIds}`
+                    );
+                } catch (bookError) {
+                    // If that fails, try 'ranked_book' entity type
+                    console.warn('Failed to fetch summaries for entity type "book", trying "ranked_book"');
+                    summariesResponse = await axios.get<Summary[]>(
+                        `http://localhost:8080/api/summaries/entity/ranked_book?entityIds=${bookIds}`
+                    );
+                }
+
                 setSummaries(summariesResponse.data);
             }
 
@@ -206,8 +222,8 @@ const BooksPanel: React.FC = () => {
                                                     </div>
                                                     <div className="text-xs text-gray-700 leading-tight overflow-hidden">
                                                         {isSummaryExpanded(summary.id)
-                                                            ? summary.summary
-                                                            : truncateSummary(summary.summary, 120)}
+                                                            ? summary.content
+                                                            : truncateSummary(summary.content, 120)}
                                                     </div>
                                                 </div>
                                             ))}
