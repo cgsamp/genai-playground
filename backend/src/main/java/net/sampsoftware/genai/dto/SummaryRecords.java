@@ -7,18 +7,16 @@ public class SummaryRecords {
 
     public record SummaryRecord(
             Long id,
-            Long entityId,
-            String entityType,
+            Long itemId,           // Changed from entityId
             String content,
             LocalDateTime createdAt
     ) {}
 
     public record DetailedSummaryRecord(
             Long id,
-            Long entityId,
-            String entityType,
-            String entityName,
-            String entityDetails,
+            Long itemId,           // Changed from entityId
+            String itemName,       // Simplified from entityName
+            String itemDetails,    // Simplified from entityDetails
             String content,
             String modelName,
             String modelProvider,

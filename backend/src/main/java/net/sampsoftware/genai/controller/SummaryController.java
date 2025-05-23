@@ -25,56 +25,114 @@ public class SummaryController {
 
     private final SummaryService summaryService;
 
-    @GetMapping("/entity/{entityType}")
-    public ResponseEntity<List<DetailedSummaryRecord>> getSummariesForEntity(
-            @PathVariable String entityType,
-            @RequestParam List<Long> entityIds
+    /**
+     * Get summaries for specific items by ID
+     */
+    @GetMapping("/items")
+    public ResponseEntity<List<DetailedSummaryRecord>> getSummariesForItems(
+            @RequestParam List<Long> itemIds
     ) {
-        log.debug("Finding summaries for entityType: {}, entityIds: {}", entityType, entityIds);
+        log.debug("Finding summaries for itemIds: {}", itemIds);
         try {
-            if (entityType == null || entityType.isBlank()) {
-                return ResponseEntity.badRequest().build();
-            }
-            if (entityIds == null || entityIds.isEmpty()) {
+            if (itemIds == null || itemIds.isEmpty()) {
                 return ResponseEntity.badRequest().build();
             }
 
-            List<DetailedSummaryRecord> summaries = summaryService.findByEntityTypeAndIds(entityType, entityIds);
+            List<DetailedSummaryRecord> summaries = summaryService.findByItemIds(itemIds);
             return ResponseEntity.ok(summaries);
         } catch (Exception e) {
-            log.error("Error fetching summaries for entityType: {}, entityIds: {}", entityType, entityIds, e);
+            log.error("Error fetching summaries for itemIds: {}", itemIds, e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
         }
     }
 
-    @GetMapping()
-    public ResponseEntity<List<DetailedSummaryRecord>> getSummaries(
+    /**
+     * Get summaries for a single item
+     */
+    @GetMapping("/item/{itemId}")
+    public ResponseEntity<List<DetailedSummaryRecord>> getSummariesForItem(
+            @PathVariable Long itemId
     ) {
-        log.debug("Finding summaries");
+        log.debug("Finding summaries for itemId: {}", itemId);
+        try {
+            List<DetailedSummaryRecord> summaries = summaryService.findByItemIds(List.of(itemId));
+            return ResponseEntity.ok(summaries);
+        } catch (Exception e) {
+            log.error("Error fetching summaries for itemId: {}", itemId, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
+        }
+    }
+
+    /**
+     * Get all summaries
+     */
+    @GetMapping
+    public ResponseEntity<List<DetailedSummaryRecord>> getAllSummaries() {
+        log.debug("Finding all summaries");
         try {
             List<DetailedSummaryRecord> summaries = summaryService.findAllDetailedSummaryRecords();
             return ResponseEntity.ok(summaries);
         } catch (Exception e) {
-            log.error("Error fetching summaries", e);
+            log.error("Error fetching all summaries", e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
         }
     }
 
-    @GetMapping("/types")
-    public ResponseEntity<List<String>> getAllEntityTypes() {
-        log.debug("Fetching all entity types");
+    /**
+     * Get summaries by batch ID
+     */
+    @GetMapping("/batch/{batchId}")
+    public ResponseEntity<List<DetailedSummaryRecord>> getSummariesByBatch(
+            @PathVariable Long batchId
+    ) {
+        log.debug("Finding summaries for batchId: {}", batchId);
         try {
-            List<String> types = summaryService.findAllEntityTypes();
-            return ResponseEntity.ok(types);
+            List<DetailedSummaryRecord> summaries = summaryService.findByBatchId(batchId);
+            return ResponseEntity.ok(summaries);
         } catch (Exception e) {
-            log.error("Error fetching entity types", e);
-            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching entity types", e);
+            log.error("Error fetching summaries for batchId: {}", batchId, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
         }
     }
 
+    /**
+     * Get summaries by model configuration
+     */
+    @GetMapping("/model-config/{modelConfigId}")
+    public ResponseEntity<List<DetailedSummaryRecord>> getSummariesByModelConfig(
+            @PathVariable Long modelConfigId
+    ) {
+        log.debug("Finding summaries for modelConfigId: {}", modelConfigId);
+        try {
+            List<DetailedSummaryRecord> summaries = summaryService.findByModelConfigurationId(modelConfigId);
+            return ResponseEntity.ok(summaries);
+        } catch (Exception e) {
+            log.error("Error fetching summaries for modelConfigId: {}", modelConfigId, e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
+        }
+    }
+
+    /**
+     * Get summary statistics
+     */
+    @GetMapping("/stats")
+    public ResponseEntity<SummaryStats> getSummaryStats() {
+        log.debug("Fetching summary statistics");
+        try {
+            SummaryStats stats = summaryService.getSummaryStats();
+            return ResponseEntity.ok(stats);
+        } catch (Exception e) {
+            log.error("Error fetching summary statistics", e);
+            throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summary statistics", e);
+        }
+    }
+
+    /**
+     * Create a new summary
+     */
     @PostMapping
     public ResponseEntity<SummaryRecord> createSummary(@RequestBody @Validated Summary summary) {
-        log.debug("Creating new summary: {}", summary);
+        log.debug("Creating new summary for item: {}", summary.getItemId());
         try {
             SummaryRecord created = summaryService.create(summary);
             return ResponseEntity.status(HttpStatus.CREATED).body(created);
@@ -84,6 +142,9 @@ public class SummaryController {
         }
     }
 
+    /**
+     * Update an existing summary
+     */
     @PutMapping("/{id}")
     public ResponseEntity<SummaryRecord> updateSummary(@PathVariable Long id, @RequestBody @Validated Summary summary) {
         log.debug("Updating summary with ID: {}", id);
@@ -92,7 +153,7 @@ public class SummaryController {
             SummaryRecord updated = summaryService.update(summary);
             return ResponseEntity.ok(updated);
         } catch (ResourceNotFoundException e) {
-            log.warn("Put, Summary not found with ID: {}", id);
+            log.warn("Update Summary not found with ID: {}", id);
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
             log.error("Error updating summary with ID: {}", id, e);
@@ -100,6 +161,9 @@ public class SummaryController {
         }
     }
 
+    /**
+     * Delete a summary
+     */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSummary(@PathVariable Long id) {
         log.debug("Deleting summary with ID: {}", id);
@@ -107,11 +171,35 @@ public class SummaryController {
             summaryService.delete(id);
             return ResponseEntity.noContent().build();
         } catch (ResourceNotFoundException e) {
-            log.warn("Delete, Summary not found with ID: {}", id);
+            log.warn("Delete Summary not found with ID: {}", id);
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
             log.error("Error deleting summary with ID: {}", id, e);
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error deleting summary", e);
         }
     }
+
+
+
+
+    // Add these records inside SummaryController class
+    public record SummaryStats(
+            int totalSummaries,
+            int totalItems,
+            int totalBatches,
+            List<ModelSummaryCount> modelCounts,
+            List<BatchSummaryCount> recentBatches
+    ) {}
+
+    public record ModelSummaryCount(
+            Long modelId,
+            String modelName,
+            int count
+    ) {}
+
+    public record BatchSummaryCount(
+            Long batchId,
+            int count,
+            String createdAt
+    ) {}
 }

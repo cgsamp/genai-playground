@@ -7,10 +7,8 @@ public record RelationshipRecord(
         Long id,
         String name,
         String relationshipType,
-        String sourceType,
-        Long sourceId,
-        String targetType,
-        Long targetId,
+        Long sourceItemId,      // Changed from sourceType/sourceId
+        Long targetItemId,      // Changed from targetType/targetId
         JsonNode attributes,
         LocalDateTime createdAt,
         LocalDateTime updatedAt

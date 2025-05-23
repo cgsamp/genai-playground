@@ -2,27 +2,151 @@
 
 import React, { useState, useEffect } from 'react';
 import { Book as BookIcon, Users, FileText, Link2 } from 'lucide-react';
-import { fetcher } from '@/app/lib/fetcher';
+import { api } from '@/app/lib/api';
+import type { Item, ItemSummary, SelectedItem } from '@/app/types';
 
-import type {
-    Book,
-    Person,
-    Relationship,
-    DetailedSummary,
-    SelectedEntity,
-    RelatedItems
-} from '@/app/types';
+// Enhanced Summary Card Component
+interface SummaryCardProps {
+    summary: ItemSummary;
+    isSelected?: boolean;
+    onClick?: () => void;
+}
+
+const SummaryCard: React.FC<SummaryCardProps> = ({ summary, isSelected, onClick }) => {
+    // Format the creation date properly
+    const formatDate = (dateString: string) => {
+        if (!dateString) return 'Unknown date';
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleString('en-US', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit',
+                timeZoneName: 'short'
+            });
+        } catch (e) {
+            return dateString;
+        }
+    };
+
+    // Extract model configuration details safely
+    const getModelConfigSummary = () => {
+        const config = summary.modelConfig || {};
+        if (!config || typeof config !== 'object') return 'No configuration';
+
+        const parts = [];
+        if (config.temperature !== undefined) parts.push(`temp: ${config.temperature}`);
+        if (config.max_tokens !== undefined) parts.push(`max_tokens: ${config.max_tokens}`);
+        if (config.top_p !== undefined) parts.push(`top_p: ${config.top_p}`);
+        if (config.frequency_penalty !== undefined) parts.push(`freq_penalty: ${config.frequency_penalty}`);
+        if (config.presence_penalty !== undefined) parts.push(`presence_penalty: ${config.presence_penalty}`);
+
+        return parts.length > 0 ? parts.join(', ') : 'Default settings';
+    };
+
+    return (
+        <div
+            className={`rounded-lg border p-4 cursor-pointer transition-all ${
+                isSelected
+                    ? 'border-yellow-500 bg-yellow-50'
+                    : 'hover:border-gray-400 bg-white'
+            }`}
+            onClick={onClick}
+        >
+            {/* Header */}
+            <div className="flex justify-between items-start mb-3">
+                <h3 className="text-lg font-semibold text-gray-900">
+                    {summary.itemName || `Item #${summary.itemId}`}
+                </h3>
+                <span className="text-sm text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                    Item #{summary.itemId}
+                </span>
+            </div>
+
+            {/* Item Details */}
+            {summary.itemDetails && (
+                <div className="mb-3">
+                    <p className="text-sm text-gray-600 italic">
+                        {summary.itemDetails}
+                    </p>
+                </div>
+            )}
+
+            {/* Summary Content */}
+            <div className="mb-4">
+                <div className="text-gray-800 text-sm bg-gray-50 p-3 rounded leading-relaxed">
+                    {summary.content.length > 300 ? `${summary.content.substring(0, 300)}...` : summary.content}
+                </div>
+            </div>
+
+            {/* Metadata Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-3 border-t border-gray-100">
+                {/* Model Information */}
+                <div>
+                    <h4 className="text-xs font-medium text-gray-700 mb-1">Model</h4>
+                    <div className="space-y-1">
+                        <p className="text-xs text-gray-600">
+                            <span className="font-medium">{summary.modelName}</span> ({summary.modelProvider})
+                        </p>
+                        <p className="text-xs text-gray-500">
+                            Config ID: {summary.modelConfigurationId}
+                        </p>
+                        {summary.configComment && (
+                            <p className="text-xs text-gray-500 italic">
+                                {summary.configComment}
+                            </p>
+                        )}
+                    </div>
+                </div>
+
+                {/* Configuration Details */}
+                <div>
+                    <h4 className="text-xs font-medium text-gray-700 mb-1">Configuration</h4>
+                    <div className="space-y-1">
+                        <p className="text-xs text-gray-600 font-mono bg-gray-50 p-1 rounded">
+                            {getModelConfigSummary()}
+                        </p>
+                        {summary.modelConfig && (
+                            <details className="text-xs">
+                                <summary className="cursor-pointer text-blue-600 hover:text-blue-800">
+                                    View full config
+                                </summary>
+                                <pre className="mt-1 p-2 bg-gray-50 rounded text-xs overflow-x-auto">
+                                    {JSON.stringify(summary.modelConfig, null, 2)}
+                                </pre>
+                            </details>
+                        )}
+                    </div>
+                </div>
+
+                {/* Timing Information - spans both columns */}
+                <div className="md:col-span-2">
+                    <h4 className="text-xs font-medium text-gray-700 mb-1">Created</h4>
+                    <p className="text-xs text-gray-600">
+                        {formatDate(summary.createdAt)}
+                    </p>
+                </div>
+            </div>
+        </div>
+    );
+};
 
 const EntityExplorer = () => {
     const [activeTab, setActiveTab] = useState<'books' | 'people' | 'summaries' | 'relationships'>('books');
-    const [books, setBooks] = useState<Book[]>([]);
-    const [people, setPeople] = useState<Person[]>([]);
-    const [summaries, setSummaries] = useState<DetailedSummary[]>([]);
-    const [relationships, setRelationships] = useState<Relationship[]>([]);
+    const [books, setBooks] = useState<Item[]>([]);
+    const [people, setPeople] = useState<Item[]>([]);
+    const [summaries, setSummaries] = useState<ItemSummary[]>([]);
+    const [relationships, setRelationships] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [selectedEntity, setSelectedEntity] = useState<SelectedEntity | null>(null);
-    const [relatedItems, setRelatedItems] = useState<RelatedItems>({ relationships: [], summaries: [] });
+    const [selectedItem, setSelectedItem] = useState<SelectedItem | null>(null);
+    const [relatedItems, setRelatedItems] = useState<{ relationships: any[], summaries: ItemSummary[] }>({
+        relationships: [],
+        summaries: []
+    });
 
     useEffect(() => {
         void loadTabData(activeTab);
@@ -31,25 +155,26 @@ const EntityExplorer = () => {
     const loadTabData = async (tab: typeof activeTab) => {
         setIsLoading(true);
         setError(null);
-        setSelectedEntity(null);
+        setSelectedItem(null);
         setRelatedItems({ relationships: [], summaries: [] });
 
         try {
             switch (tab) {
                 case 'books':
-                    const booksData = await fetcher<Book[]>('/api/books');
+                    const booksData = await api.items.getItems('book');
                     setBooks(booksData);
                     break;
                 case 'people':
-                    const peopleData = await fetcher<Person[]>('/api/people');
+                    const peopleData = await api.items.getItems('person');
                     setPeople(peopleData);
                     break;
                 case 'summaries':
-                    const summariesData = await fetcher<DetailedSummary[]>('/api/summaries');
+                    const summariesData = await api.items.getItemSummaries([]);
                     setSummaries(summariesData);
                     break;
                 case 'relationships':
-                    const relationshipsData = await fetcher<Relationship[]>('/api/relationships/type/all');
+                    // This would need to be updated based on your new relationship API
+                    const relationshipsData = await fetch('/api/relationships').then(r => r.json());
                     setRelationships(relationshipsData);
                     break;
                 default:
@@ -64,35 +189,21 @@ const EntityExplorer = () => {
         }
     };
 
-    const handleEntitySelect = async (
-        entity: Book | Person | DetailedSummary | Relationship,
-        type: SelectedEntity['type']
-    ) => {
-        const entityName = getEntityName(entity, type);
-        setSelectedEntity({ id: entity.id, type, name: entityName });
+    const handleItemSelect = async (item: Item | ItemSummary, itemType: string) => {
+        const itemName = getItemName(item, itemType);
+        setSelectedItem({ id: item.id, itemType, name: itemName });
         setIsLoading(true);
         setRelatedItems({ relationships: [], summaries: [] });
 
         try {
-            // Get relationships for this entity
-            const relationshipsResponse = await fetcher<Relationship[]>(
-                `/api/relationships/entity?entityType=${type}&entityId=${entity.id}`
-            );
+            // Get summaries for this item
+            const summariesData = await api.items.getItemSummaries([item.id]);
 
-            // For books, also get summaries
-            let summariesData: DetailedSummary[] = [];
-            if (type === 'book') {
-                try {
-                    summariesData = await fetcher<DetailedSummary[]>(
-                        `/api/summaries/entity/book?entityIds=${entity.id}`
-                    );
-                } catch (summaryErr) {
-                    console.warn('Failed to fetch summaries:', summaryErr);
-                }
-            }
+            // Get relationships would need to be implemented based on your new API
+            // const relationshipsData = await api.relationships.getRelationshipsForItem(item.id);
 
             setRelatedItems({
-                relationships: relationshipsResponse,
+                relationships: [], // relationshipsData,
                 summaries: summariesData
             });
         } catch (err) {
@@ -104,19 +215,14 @@ const EntityExplorer = () => {
         }
     };
 
-    const getEntityName = (entity: Book | Person | DetailedSummary | Relationship, type: SelectedEntity['type']): string => {
-        switch (type) {
-            case 'book':
-                return (entity as Book).title as string;
-            case 'person':
-                return (entity as Person).name as string;
-            case 'summary':
-                return (entity as DetailedSummary).entityName as string || `Summary ${entity.id}` as string;
-            case 'relationship':
-                return (entity as Relationship).name as string;
-            default:
-                return `Entity ${entity.id}` as string;
+    const getItemName = (item: Item | ItemSummary, itemType: string): string => {
+        if ('name' in item) {
+            return item.name;
         }
+        if ('itemName' in item) {
+            return item.itemName || `Item ${item.id}`;
+        }
+        return `${itemType} ${item.id}`;
     };
 
     const renderTabContent = () => {
@@ -157,29 +263,29 @@ const EntityExplorer = () => {
                     <div
                         key={book.id}
                         className={`rounded-lg border p-4 cursor-pointer transition-all ${
-                            selectedEntity?.id === book.id && selectedEntity?.type === 'book'
+                            selectedItem?.id === book.id && selectedItem?.itemType === 'book'
                                 ? 'border-blue-500 bg-blue-50'
                                 : 'hover:border-gray-400'
                         }`}
-                        onClick={() => handleEntitySelect(book, 'book')}
+                        onClick={() => handleItemSelect(book, 'book')}
                     >
-                        <h3 className="font-semibold text-lg">{book.title}</h3>
-                        <p className="text-gray-700">by {book.authorName || 'Unknown'}</p>
-                        <p className="text-gray-600 text-sm">Published: {book.publishYear || 'Unknown'}</p>
+                        <h3 className="font-semibold text-lg">{book.name}</h3>
+                        <p className="text-gray-700">by {book.creator || 'Unknown'}</p>
+                        <p className="text-gray-600 text-sm">Published: {book.createdYear || 'Unknown'}</p>
                         {book.attributes && (
                             <div className="mt-2 text-sm">
-                                {book.attributes["genre"] as string && (
+                                {book.attributes.genre && (
                                     <span className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700 mr-1">
-                                        {String(book.attributes["genre"]) }
+                                        {String(book.attributes.genre)}
                                     </span>
                                 )}
-                                {book.attributes["rank"] as string && (
+                                {book.attributes.rank && (
                                     <span className="inline-block bg-blue-200 rounded-full px-2 py-1 text-xs font-semibold text-blue-700 mr-1">
-                                        Rank: {String(book.attributes["rank"])}
+                                        Rank: {String(book.attributes.rank)}
                                     </span>
                                 )}
-                                {book.attributes["pages"] as string && (
-                                    <span className="text-gray-500 text-xs">{String(book.attributes["pages"])} pages</span>
+                                {book.attributes.pages && (
+                                    <span className="text-gray-500 text-xs">{String(book.attributes.pages)} pages</span>
                                 )}
                             </div>
                         )}
@@ -200,23 +306,23 @@ const EntityExplorer = () => {
                     <div
                         key={person.id}
                         className={`rounded-lg border p-4 cursor-pointer transition-all ${
-                            selectedEntity?.id === person.id && selectedEntity?.type === 'person'
+                            selectedItem?.id === person.id && selectedItem?.itemType === 'person'
                                 ? 'border-green-500 bg-green-50'
                                 : 'hover:border-gray-400'
                         }`}
-                        onClick={() => handleEntitySelect(person, 'person')}
+                        onClick={() => handleItemSelect(person, 'person')}
                     >
                         <h3 className="font-semibold text-lg">{person.name}</h3>
-                        <p className="text-gray-600">{person.occupation || 'Unknown occupation'}</p>
-                        {person.email && <p className="text-gray-500 text-sm">{person.email}</p>}
-                        {person.birthdate as string && (
+                        <p className="text-gray-600">{person.attributes?.occupation || 'Unknown occupation'}</p>
+                        {person.attributes?.email && <p className="text-gray-500 text-sm">{String(person.attributes.email)}</p>}
+                        {person.attributes?.birth_date && (
                             <p className="text-gray-500 text-sm">
-                                Born: {new Date(person.birthdate).toLocaleDateString()}
+                                Born: {new Date(String(person.attributes.birth_date)).toLocaleDateString()}
                             </p>
                         )}
-                        {person.attributes["nationality"] as string && (
+                        {person.attributes?.nationality && (
                             <span className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700 mt-2">
-                                {String(person.attributes["nationality"])}
+                                {String(person.attributes.nationality)}
                             </span>
                         )}
                     </div>
@@ -231,31 +337,14 @@ const EntityExplorer = () => {
         }
 
         return (
-            <div className="space-y-4 p-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 p-4">
                 {summaries.map(summary => (
-                    <div
+                    <SummaryCard
                         key={summary.id}
-                        className={`rounded-lg border p-4 cursor-pointer transition-all ${
-                            selectedEntity?.id === summary.id && selectedEntity?.type === 'summary'
-                                ? 'border-yellow-500 bg-yellow-50'
-                                : 'hover:border-gray-400'
-                        }`}
-                        onClick={() => handleEntitySelect(summary, 'summary')}
-                    >
-                        <div className="flex justify-between">
-                            <h3 className="font-semibold">{summary.entityName || `Summary ${summary.id}`}</h3>
-                            <span className="text-sm text-gray-500">
-                                Entity: {summary.entityType} #{summary.entityId}
-                            </span>
-                        </div>
-                        <div className="mt-2 text-gray-700 text-sm bg-gray-50 p-3 rounded">
-                            {summary.content}
-                        </div>
-                        <div className="mt-2 text-xs text-gray-500 flex justify-between">
-                            <span>Model: {summary.modelName} ({summary.modelProvider})</span>
-                            <span>Created: {new Date(summary.createdAt).toLocaleDateString()}</span>
-                        </div>
-                    </div>
+                        summary={summary}
+                        isSelected={selectedItem?.id === summary.id && selectedItem?.itemType === 'summary'}
+                        onClick={() => handleItemSelect(summary, 'summary')}
+                    />
                 ))}
             </div>
         );
@@ -272,20 +361,20 @@ const EntityExplorer = () => {
                     <div
                         key={rel.id}
                         className={`rounded-lg border p-4 cursor-pointer transition-all ${
-                            selectedEntity?.id === rel.id && selectedEntity?.type === 'relationship'
+                            selectedItem?.id === rel.id && selectedItem?.itemType === 'relationship'
                                 ? 'border-purple-500 bg-purple-50'
                                 : 'hover:border-gray-400'
                         }`}
-                        onClick={() => handleEntitySelect(rel, 'relationship')}
+                        onClick={() => handleItemSelect(rel, 'relationship')}
                     >
                         <h3 className="font-semibold">{rel.name}</h3>
                         <div className="mt-2 flex items-center text-sm">
                             <span className="bg-gray-200 px-2 py-1 rounded">
-                                {rel.sourceType} #{rel.sourceId}
+                                Item #{rel.sourceItemId}
                             </span>
                             <span className="mx-2 font-medium text-purple-600">{rel.relationshipType}</span>
                             <span className="bg-gray-200 px-2 py-1 rounded">
-                                {rel.targetType} #{rel.targetId}
+                                Item #{rel.targetItemId}
                             </span>
                         </div>
                         {rel.attributes && Object.keys(rel.attributes).length > 0 && (
@@ -304,7 +393,7 @@ const EntityExplorer = () => {
     };
 
     const renderRelatedItems = () => {
-        if (!selectedEntity) return null;
+        if (!selectedItem) return null;
 
         if (isLoading) {
             return (
@@ -321,9 +410,9 @@ const EntityExplorer = () => {
         return (
             <div className="bg-gray-50 border-t p-4">
                 <h3 className="text-lg font-semibold mb-4">
-                    Related Items for {selectedEntity.name}
+                    Related Items for {selectedItem.name}
                     <span className="text-sm ml-2 text-gray-500">
-                        ({selectedEntity.type} #{selectedEntity.id})
+                        ({selectedItem.itemType} #{selectedItem.id})
                     </span>
                 </h3>
 
@@ -342,11 +431,11 @@ const EntityExplorer = () => {
                                     <div className="font-medium">{rel.relationshipType}</div>
                                     <div className="flex items-center mt-1">
                                         <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                                            {rel.sourceType} #{rel.sourceId}
+                                            Item #{rel.sourceItemId}
                                         </span>
                                         <span className="mx-2">→</span>
                                         <span className="bg-gray-100 px-2 py-1 rounded text-xs">
-                                            {rel.targetType} #{rel.targetId}
+                                            Item #{rel.targetItemId}
                                         </span>
                                     </div>
                                 </div>
@@ -364,7 +453,7 @@ const EntityExplorer = () => {
                             {summaries.map(summary => (
                                 <div key={summary.id} className="border rounded p-3 bg-white text-sm">
                                     <div className="font-medium">
-                                        {summary.entityName || `Summary ${summary.id}`}
+                                        {summary.itemName || `Summary ${summary.id}`}
                                     </div>
                                     <div className="mt-1 text-gray-600">
                                         {summary.content.substring(0, 150)}...
@@ -436,7 +525,7 @@ const EntityExplorer = () => {
                 {renderTabContent()}
             </div>
 
-            {selectedEntity && (
+            {selectedItem && (
                 <div className="border-t">
                     {renderRelatedItems()}
                 </div>
