@@ -23,11 +23,10 @@ public class RelationshipController {
         return ResponseEntity.ok(toRecord(created));
     }
 
-    @GetMapping("/entity")
-    public ResponseEntity<List<RelationshipRecord>> getRelationshipsForEntity(
-            @RequestParam String entityType,
-            @RequestParam Long entityId) {
-        List<Relationship> relationships = relationshipService.getRelationshipsForEntity(entityType, entityId);
+    @GetMapping("/item/{itemId}")
+    public ResponseEntity<List<RelationshipRecord>> getRelationshipsForItem(
+            @PathVariable Long itemId) {
+        List<Relationship> relationships = relationshipService.getRelationshipsForItem(itemId);
         List<RelationshipRecord> records = relationships.stream()
                 .map(this::toRecord)
                 .collect(Collectors.toList());
@@ -44,7 +43,18 @@ public class RelationshipController {
         return ResponseEntity.ok(records);
     }
 
-    @GetMapping("/type/all")
+    @GetMapping("/collection/{collectionId}")
+    public ResponseEntity<List<RelationshipRecord>> getCollectionRelationships(
+            @PathVariable Long collectionId) {
+        // Get all relationships for this collection (both members and definition)
+        List<Relationship> relationships = relationshipService.getRelationshipsForCollection(collectionId);
+        List<RelationshipRecord> records = relationships.stream()
+                .map(this::toRecord)
+                .collect(Collectors.toList());
+        return ResponseEntity.ok(records);
+    }
+
+    @GetMapping
     public ResponseEntity<List<RelationshipRecord>> getAllRelationships() {
         List<Relationship> relationships = relationshipService.getAllRelationships();
         List<RelationshipRecord> records = relationships.stream()
@@ -53,15 +63,19 @@ public class RelationshipController {
         return ResponseEntity.ok(records);
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteRelationship(@PathVariable Long id) {
+        relationshipService.deleteRelationship(id);
+        return ResponseEntity.noContent().build();
+    }
+
     private RelationshipRecord toRecord(Relationship relationship) {
         return new RelationshipRecord(
                 relationship.getId(),
                 relationship.getName(),
                 relationship.getRelationshipType(),
-                relationship.getSourceType(),
-                relationship.getSourceId(),
-                relationship.getTargetType(),
-                relationship.getTargetId(),
+                relationship.getSourceItemId(),
+                relationship.getTargetItemId(),
                 relationship.getAttributes(),
                 relationship.getCreatedAt(),
                 relationship.getUpdatedAt()
@@ -72,10 +86,8 @@ public class RelationshipController {
         Relationship relationship = new Relationship();
         relationship.setName(record.name());
         relationship.setRelationshipType(record.relationshipType());
-        relationship.setSourceType(record.sourceType());
-        relationship.setSourceId(record.sourceId());
-        relationship.setTargetType(record.targetType());
-        relationship.setTargetId(record.targetId());
+        relationship.setSourceItemId(record.sourceItemId());
+        relationship.setTargetItemId(record.targetItemId());
         relationship.setAttributes(record.attributes());
         return relationship;
     }

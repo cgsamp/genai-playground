@@ -1,4 +1,3 @@
-// backend/src/main/java/net/sampsoftware/genai/service/OperationsService.java
 package net.sampsoftware.genai.service;
 
 import lombok.RequiredArgsConstructor;
@@ -18,6 +17,7 @@ import java.util.concurrent.CompletableFuture;
 public class OperationsService {
 
     private final RelationshipRepository relationshipRepository;
+    private final ItemRepository itemRepository;
     private final SummaryService summaryService;
     private final ModelService modelService;
     private final AIService aiService;
@@ -43,37 +43,37 @@ public class OperationsService {
 
     @Transactional
     public SummarizeEachResult summarizeEachInCollection(Long modelConfigurationId, Long collectionId) {
-        log.debug("Summarizing each entity in collection {}", collectionId);
+        log.debug("Summarizing each item in collection {}", collectionId);
 
-        // Get collection entities using the new repository method
-        var collectionEntities = relationshipRepository.findCollectionMembers(collectionId);
+        // Get collection items using the unified Item model
+        var collectionItems = relationshipRepository.findCollectionMembers(collectionId);
 
         var modelConfiguration = modelService.findConfigurationById(modelConfigurationId);
         var batchId = System.nanoTime();
         var summaryIds = new ArrayList<Long>();
 
         String systemPrompt = """
-            You are analyzing an entity from a collection. Please provide a concise, informative summary 
-            of this entity focusing on its key characteristics, significance, and notable features. 
-            Keep the summary to 2-3 sentences and make it suitable for comparative analysis with other entities.
+            You are analyzing an item from a collection. Please provide a concise, informative summary
+            of this item focusing on its key characteristics, significance, and notable features.
+            Keep the summary to 2-3 sentences and make it suitable for comparative analysis with other items.
             """;
 
         var futures = new ArrayList<CompletableFuture<Boolean>>();
 
-        for (var relationship : collectionEntities) {
-            // For each entity in the collection, create a summary
+        for (var relationship : collectionItems) {
+            // Each relationship points to an item in the collection
+            Long itemId = relationship.getSourceItemId();
+
             try {
-                var entityInfo = buildEntityInfo(relationship.getSourceType(), relationship.getSourceId());
+                var itemInfo = buildItemInfo(itemId);
 
                 var future = CompletableFuture.supplyAsync(() -> {
                     try {
-                        String summaryText = aiService.generateResponse(systemPrompt, entityInfo, modelConfiguration);
+                        String summaryText = aiService.generateResponse(systemPrompt, itemInfo, modelConfiguration);
 
                         var summary = Summary.builder()
-                                .name(String.format("Summary of %s %d", relationship.getSourceType(), relationship.getSourceId()))
                                 .modelConfiguration(modelConfiguration)
-                                .entityType(relationship.getSourceType())
-                                .entityId(relationship.getSourceId())
+                                .itemId(itemId)
                                 .content(summaryText)
                                 .batchId(batchId)
                                 .build();
@@ -84,16 +84,14 @@ public class OperationsService {
                         }
                         return true;
                     } catch (Exception e) {
-                        log.error("Failed to create summary for {} {}: {}",
-                                relationship.getSourceType(), relationship.getSourceId(), e.getMessage());
+                        log.error("Failed to create summary for item {}: {}", itemId, e.getMessage());
                         return false;
                     }
                 });
 
                 futures.add(future);
             } catch (Exception e) {
-                log.error("Error processing entity {} {}: {}",
-                        relationship.getSourceType(), relationship.getSourceId(), e.getMessage());
+                log.error("Error processing item {}: {}", itemId, e.getMessage());
             }
         }
 
@@ -113,34 +111,32 @@ public class OperationsService {
     public SummarizeGroupResult summarizeCollection(Long modelConfigurationId, Long collectionId) {
         log.debug("Summarizing collection {}", collectionId);
 
-        // Get collection definition and entities using new repository methods
+        // Get collection definition and items
         var collectionDefinitions = relationshipRepository.findCollectionDefinition(collectionId);
         if (collectionDefinitions.isEmpty()) {
             throw new RuntimeException("Collection definition not found for collection " + collectionId);
         }
-        var collectionDefinition = collectionDefinitions.get(0);
+        var collectionDefinition = collectionDefinitions.getFirst();
 
-        var collectionEntities = relationshipRepository.findCollectionMembers(collectionId);
+        var collectionItems = relationshipRepository.findCollectionMembers(collectionId);
 
         var modelConfiguration = modelService.findConfigurationById(modelConfigurationId);
 
         // Build comprehensive collection context
-        var collectionContext = buildCollectionContext(collectionDefinition, collectionEntities);
+        var collectionContext = buildCollectionContext(collectionDefinition, collectionItems);
 
         String systemPrompt = """
-            You are analyzing a collection of entities. Please provide a comprehensive summary of this collection, 
-            including its theme, the types of entities it contains, common patterns or relationships you observe, 
-            and the overall significance or purpose of grouping these entities together. 
+            You are analyzing a collection of items. Please provide a comprehensive summary of this collection,
+            including its theme, the types of items it contains, common patterns or relationships you observe,
+            and the overall significance or purpose of grouping these items together.
             Focus on synthesis and high-level insights rather than listing individual items.
             """;
 
         String summaryText = aiService.generateResponse(systemPrompt, collectionContext, modelConfiguration);
 
         var summary = Summary.builder()
-                .name(String.format("Collection Summary: %s", collectionDefinition.getName()))
                 .modelConfiguration(modelConfiguration)
-                .entityType("collection")
-                .entityId(collectionId)
+                .itemId(collectionId)  // Collection itself is an item
                 .content(summaryText)
                 .build();
 
@@ -150,13 +146,11 @@ public class OperationsService {
         var summaryRelationship = new Relationship();
         summaryRelationship.setName("Summary of Collection");
         summaryRelationship.setRelationshipType("summarizes");
-        summaryRelationship.setSourceType("summary");
-        summaryRelationship.setSourceId(savedSummary.getId());
-        summaryRelationship.setTargetType("collection");
-        summaryRelationship.setTargetId(collectionId);
+        summaryRelationship.setSourceItemId(savedSummary.getId());  // Summary as source
+        summaryRelationship.setTargetItemId(collectionId);          // Collection as target
         relationshipRepository.save(summaryRelationship);
 
-        return new SummarizeGroupResult(savedSummary.getId(), collectionId, collectionEntities.size());
+        return new SummarizeGroupResult(savedSummary.getId(), collectionId, collectionItems.size());
     }
 
     @Transactional
@@ -167,7 +161,7 @@ public class OperationsService {
     ) {
         log.debug("Generating relationships for collection {} with types {}", collectionId, relationshipTypes);
 
-        var collectionEntities = relationshipRepository.findCollectionMembers(collectionId);
+        var collectionItems = relationshipRepository.findCollectionMembers(collectionId);
 
         var modelConfiguration = modelService.findConfigurationById(modelConfigurationId);
         var relationshipIds = new ArrayList<Long>();
@@ -175,7 +169,7 @@ public class OperationsService {
         int pairsProcessed = 0;
 
         String systemPrompt = String.format("""
-            You are analyzing the relationship between two entities. 
+            You are analyzing the relationship between two items.
             Please assess if there is a meaningful relationship between them from these types: %s
             
             Respond with JSON in this format:
@@ -187,47 +181,41 @@ public class OperationsService {
             }
             """, String.join(", ", relationshipTypes));
 
-        // Generate relationships for all pairs of entities
-        for (int i = 0; i < collectionEntities.size(); i++) {
-            for (int j = i + 1; j < collectionEntities.size(); j++) {
-                var entity1 = collectionEntities.get(i);
-                var entity2 = collectionEntities.get(j);
+        // Generate relationships for all pairs of items
+        for (int i = 0; i < collectionItems.size(); i++) {
+            for (int j = i + 1; j < collectionItems.size(); j++) {
+                var item1 = collectionItems.get(i);
+                var item2 = collectionItems.get(j);
 
                 try {
-                    var entity1Info = buildEntityInfo(entity1.getSourceType(), entity1.getSourceId());
-                    var entity2Info = buildEntityInfo(entity2.getSourceType(), entity2.getSourceId());
+                    var item1Info = buildItemInfo(item1.getSourceItemId());
+                    var item2Info = buildItemInfo(item2.getSourceItemId());
 
                     var prompt = String.format("""
-                        Entity 1: %s
-                        Entity 2: %s
+                        Item 1: %s
+                        Item 2: %s
                         
-                        Analyze the relationship between these entities.
-                        """, entity1Info, entity2Info);
+                        Analyze the relationship between these items.
+                        """, item1Info, item2Info);
 
                     var response = aiService.generateResponse(systemPrompt, prompt, modelConfiguration);
 
                     // Parse the JSON response and create relationships if found
-                    // This is simplified - in practice you'd want robust JSON parsing
                     if (response.contains("\"hasRelationship\": true")) {
                         var relationship = new Relationship();
-                        relationship.setName(String.format("AI-Generated relationship between %s %d and %s %d",
-                                entity1.getSourceType(), entity1.getSourceId(),
-                                entity2.getSourceType(), entity2.getSourceId()));
+                        relationship.setName(String.format("AI-Generated relationship between items %d and %d",
+                                item1.getSourceItemId(), item2.getSourceItemId()));
                         relationship.setRelationshipType(extractRelationshipType(response, relationshipTypes));
-                        relationship.setSourceType(entity1.getSourceType());
-                        relationship.setSourceId(entity1.getSourceId());
-                        relationship.setTargetType(entity2.getSourceType());
-                        relationship.setTargetId(entity2.getSourceId());
+                        relationship.setSourceItemId(item1.getSourceItemId());
+                        relationship.setTargetItemId(item2.getSourceItemId());
 
                         var savedRelationship = relationshipRepository.save(relationship);
                         relationshipIds.add(savedRelationship.getId());
 
-                        // Create a summary of this relationship
+                        // Create a summary of this relationship analysis
                         var relationshipSummary = Summary.builder()
-                                .name(String.format("Analysis of relationship %d", savedRelationship.getId()))
                                 .modelConfiguration(modelConfiguration)
-                                .entityType("relationship")
-                                .entityId(savedRelationship.getId())
+                                .itemId(savedRelationship.getId())  // Relationship as an item
                                 .content(response)
                                 .build();
 
@@ -237,9 +225,8 @@ public class OperationsService {
 
                     pairsProcessed++;
                 } catch (Exception e) {
-                    log.error("Error processing relationship between {} {} and {} {}: {}",
-                            entity1.getSourceType(), entity1.getSourceId(),
-                            entity2.getSourceType(), entity2.getSourceId(), e.getMessage());
+                    log.error("Error processing relationship between items {} and {}: {}",
+                            item1.getSourceItemId(), item2.getSourceItemId(), e.getMessage());
                 }
             }
         }
@@ -252,27 +239,70 @@ public class OperationsService {
         );
     }
 
-    private String buildEntityInfo(String entityType, Long entityId) {
-        // TODO: Expand this to fetch actual entity details from appropriate repositories
-        // For now, return basic info - you'll want to implement this based on entity type
-        return String.format("Entity Type: %s, ID: %d", entityType, entityId);
+    // === HELPER METHODS ===
+
+    /**
+     * Build item information for AI processing
+     */
+    private String buildItemInfo(Long itemId) {
+        try {
+            var itemOpt = itemRepository.findById(itemId);
+            if (itemOpt.isEmpty()) {
+                return String.format("Item ID: %d (not found)", itemId);
+            }
+
+            var item = itemOpt.get();
+            StringBuilder info = new StringBuilder();
+
+            info.append(String.format("Item ID: %d\n", item.getId()));
+            info.append(String.format("Name: %s\n", item.getName()));
+            info.append(String.format("Type: %s\n", item.getItemType()));
+
+            // Check if attributes exist and are not null/empty
+            if (item.getAttributes() != null && !item.getAttributes().isNull() && !item.getAttributes().isEmpty()) {
+                info.append("Attributes:\n");
+                var attributes = item.getAttributes();
+                attributes.fieldNames().forEachRemaining(field -> {
+                    var value = attributes.get(field);
+                    info.append(String.format("- %s: %s\n", field, value.asText()));
+                });
+            }
+
+            return info.toString();
+        } catch (Exception e) {
+            log.warn("Error building item info for item {}: {}", itemId, e.getMessage());
+            return String.format("Item ID: %d (error retrieving details)", itemId);
+        }
     }
 
-    private String buildCollectionContext(Relationship collectionDefinition, List<Relationship> entities) {
+    /**
+     * Build collection context for AI processing
+     */
+    private String buildCollectionContext(Relationship collectionDefinition, List<Relationship> items) {
         var context = new StringBuilder();
         context.append(String.format("Collection: %s\n", collectionDefinition.getName()));
-        context.append(String.format("Description: %s\n",
-                collectionDefinition.getAttributes() != null && collectionDefinition.getAttributes().has("description") ?
-                        collectionDefinition.getAttributes().get("description").asText() : "No description"));
 
-        context.append(String.format("Entities (%d):\n", entities.size()));
-        for (var entity : entities) {
-            context.append(String.format("- %s %d\n", entity.getSourceType(), entity.getSourceId()));
+        if (collectionDefinition.hasAttributes()) {
+            var attrs = collectionDefinition.getAttributes();
+            if (attrs.has("description")) {
+                context.append(String.format("Description: %s\n", attrs.get("description").asText()));
+            }
+            if (attrs.has("curator")) {
+                context.append(String.format("Curator: %s\n", attrs.get("curator").asText()));
+            }
+        }
+
+        context.append(String.format("Items (%d):\n", items.size()));
+        for (var item : items) {
+            context.append(String.format("- Item ID: %d\n", item.getSourceItemId()));
         }
 
         return context.toString();
     }
 
+    /**
+     * Extract relationship type from AI response
+     */
     private String extractRelationshipType(String aiResponse, List<String> validTypes) {
         // Simple extraction - in practice you'd want proper JSON parsing
         for (String type : validTypes) {
@@ -280,6 +310,6 @@ public class OperationsService {
                 return type;
             }
         }
-        return validTypes.get(0); // fallback
+        return validTypes.getFirst(); // fallback
     }
 }

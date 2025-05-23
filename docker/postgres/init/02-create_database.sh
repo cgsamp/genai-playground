@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -euo pipefail
 
 APP_DATABASE=${APP_DATABASE:-playground}
 POSTGRES_APP_USER=${POSTGRES_APP_USER:-genai}
@@ -11,7 +11,6 @@ SUBSCRIPTS_DIR="${SCRIPT_DIR}/subscripts"
 
 echo "Checking for database '$APP_DATABASE'..."
 
-# Check if database exists - using standard variable interpolation
 db_exists=$(psql -U "$POSTGRES_USER" -d "postgres" -t -c "SELECT 1 FROM pg_database WHERE datname = '$APP_DATABASE';")
 db_exists=$(echo "$db_exists" | tr -d ' ')
 

@@ -1,27 +1,33 @@
 package net.sampsoftware.genai.model;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.DynamicUpdate;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
+
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "summaries") // Keep table name for DB compatibility
+@Table(name = "summaries")
 @Data
 @NoArgsConstructor
-@EqualsAndHashCode(callSuper = true)
-@ToString(callSuper = true)
+@AllArgsConstructor
+@Builder
 @DynamicUpdate
-public class Summary extends BaseEntity {
+public class Summary {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "model_configuration_id")
     private ModelConfiguration modelConfiguration;
 
-    @Column(name = "entity_type")
-    private String entityType;
-
-    @Column(name = "entity_id")
-    private Long entityId;
+    @Column(name = "item_id", nullable = false)
+    private Long itemId;
 
     @Column(name = "content", columnDefinition = "text")
     private String content;
@@ -29,44 +35,47 @@ public class Summary extends BaseEntity {
     @Column(name = "batch_id")
     private Long batchId;
 
-    // Custom getter for model configuration ID
+    @Column(columnDefinition = "jsonb")
+    @JdbcTypeCode(SqlTypes.JSON)
+    private JsonNode metadata;
+
+    @Column(nullable = false, updatable = false)
+    private LocalDateTime createdAt;
+
+    @Column(nullable = false)
+    private LocalDateTime updatedAt;
+
+    @PrePersist
+    protected void onCreate() {
+        createdAt = LocalDateTime.now();
+        updatedAt = LocalDateTime.now();
+    }
+
+    @PreUpdate
+    protected void onUpdate() {
+        updatedAt = LocalDateTime.now();
+    }
+
+    // Utility methods
     public Long getModelConfigurationId() {
         return modelConfiguration != null ? modelConfiguration.getId() : null;
     }
 
-    // Manual builder pattern to work with inheritance
-    @Builder
-    public Summary(Long id, String name, ModelConfiguration modelConfiguration,
-                   String entityType, Long entityId, String content, Long batchId) {
-        super();
-        this.setId(id);
-        this.setName(name); // Name from BaseEntity
-        this.modelConfiguration = modelConfiguration;
-        this.entityType = entityType;
-        this.entityId = entityId;
-        this.content = content;
-        this.batchId = batchId;
+    /**
+     * Check if this summary has metadata
+     */
+    public boolean hasMetadata() {
+        return metadata != null && !metadata.isNull() && metadata.size() > 0;
     }
 
-    // Helper method to get entity name (alias for base entity name)
-    public String getEntityName() {
-        return getName();
+    /**
+     * Get a metadata field value
+     */
+    public String getMetadataField(String field) {
+        if (metadata == null || !metadata.has(field)) {
+            return null;
+        }
+        return metadata.get(field).asText();
     }
 
-    // Helper method to set entity name (alias for base entity name)
-    public void setEntityName(String entityName) {
-        setName(entityName);
-    }
-
-    // Helper method to get entity details (stored in attributes)
-    public String getEntityDetails() {
-        return getAttributes().has("details") ?
-                getAttributes().get("details").asText() : null;
-    }
-
-    // Helper method to set entity details (stored in attributes)
-    public void setEntityDetails(String details) {
-        ((com.fasterxml.jackson.databind.node.ObjectNode) getAttributes())
-                .put("details", details);
-    }
 }

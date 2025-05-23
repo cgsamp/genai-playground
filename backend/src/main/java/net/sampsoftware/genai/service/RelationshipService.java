@@ -19,8 +19,9 @@ public class RelationshipService {
     }
 
     @Transactional(readOnly = true)
-    public List<Relationship> getRelationshipsForEntity(String entityType, Long entityId) {
-        return relationshipRepository.findByEntity(entityType, entityId);
+    public List<Relationship> getRelationshipsForItem(Long itemId) {
+        // Find relationships where this item is either source or target
+        return relationshipRepository.findByItemId(itemId);
     }
 
     @Transactional(readOnly = true)
@@ -34,12 +35,29 @@ public class RelationshipService {
     }
 
     @Transactional(readOnly = true)
-    public List<Relationship> getOutgoingRelationships(String sourceType, Long sourceId) {
-        return relationshipRepository.findBySourceTypeAndSourceId(sourceType, sourceId);
+    public List<Relationship> getRelationshipsForCollection(Long collectionId) {
+        // Get all relationships where target is the collection
+        return relationshipRepository.findByTargetItemId(collectionId);
     }
 
     @Transactional(readOnly = true)
-    public List<Relationship> getIncomingRelationships(String targetType, Long targetId) {
-        return relationshipRepository.findByTargetTypeAndTargetId(targetType, targetId);
+    public List<Relationship> getOutgoingRelationships(Long sourceItemId) {
+        return relationshipRepository.findBySourceItemId(sourceItemId);
+    }
+
+    @Transactional(readOnly = true)
+    public List<Relationship> getIncomingRelationships(Long targetItemId) {
+        return relationshipRepository.findByTargetItemId(targetItemId);
+    }
+
+    @Transactional
+    public void deleteRelationship(Long id) {
+        relationshipRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteRelationshipsForItem(Long itemId) {
+        List<Relationship> relationships = getRelationshipsForItem(itemId);
+        relationshipRepository.deleteAll(relationships);
     }
 }

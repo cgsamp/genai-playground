@@ -1,4 +1,4 @@
-import * as booksApi from './books';
+import * as itemsApi from './items';
 import * as chatApi from './chat';
 import * as modelsApi from './models';
 import * as configsApi from './configs';
@@ -7,7 +7,7 @@ import * as collectionsApi from './collections';
 import * as operationsApi from './operations';
 
 export const api = {
-    books: booksApi,
+    items: itemsApi,
     chat: chatApi,
     models: modelsApi,
     configs: configsApi,

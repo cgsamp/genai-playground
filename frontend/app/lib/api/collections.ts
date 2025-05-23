@@ -1,6 +1,6 @@
 // frontend/app/lib/api/collections.ts
 import axios from 'axios';
-import { Relationship } from '@/app/types';
+import { Item } from './items';
 import { API_URL } from '@/app/config';
 
 export interface CollectionDefinition {
@@ -12,18 +12,28 @@ export interface CollectionDefinition {
 
 export interface CollectionEntity {
     id: number;
-    entityType: string;
-    entityId: number;
-    entityName: string;
+    itemId: number;
+    itemName: string;
     position?: number;
     addedDate?: string;
-    // Additional entity details based on type
-    details?: any;
+    // Item details loaded from the unified Item model
+    details?: Item;
 }
 
 export interface CollectionWithEntities {
     definition: CollectionDefinition;
     entities: CollectionEntity[];
+}
+
+export interface Relationship {
+    id: number;
+    name: string;
+    relationshipType: string;
+    sourceItemId: number;
+    targetItemId: number;
+    attributes?: Record<string, any>;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export const getCollectionDefinitions = async (): Promise<CollectionDefinition[]> => {
@@ -32,7 +42,7 @@ export const getCollectionDefinitions = async (): Promise<CollectionDefinition[]
     );
 
     return response.data.map(rel => ({
-        id: rel.targetId, // Collection ID
+        id: rel.targetItemId, // Collection ID is the target in the relationship
         name: rel.name,
         description: rel.attributes?.description as string,
         curator: rel.attributes?.curator as string,
@@ -42,52 +52,38 @@ export const getCollectionDefinitions = async (): Promise<CollectionDefinition[]
 export const getCollectionEntities = async (collectionId: number): Promise<CollectionEntity[]> => {
     // Get all relationships where target is the collection
     const response = await axios.get<Relationship[]>(
-        `${API_URL}/api/relationships/entity?entityType=collection&entityId=${collectionId}`
+        `${API_URL}/api/relationships/collection/${collectionId}`
     );
 
-    // Filter for collection relationships (not collection_definition)
+    // Filter for collection member relationships (not collection_definition)
     const collectionRels = response.data.filter(rel =>
         rel.relationshipType === 'collection' &&
-        rel.targetId === collectionId
+        rel.targetItemId === collectionId
     );
 
     // Transform to CollectionEntity format
     const entities: CollectionEntity[] = collectionRels.map(rel => ({
         id: rel.id,
-        entityType: rel.sourceType,
-        entityId: rel.sourceId,
-        entityName: rel.name,
+        itemId: rel.sourceItemId,
+        itemName: rel.name,
         position: rel.attributes?.position as number,
         addedDate: rel.attributes?.added_date as string,
     }));
 
-    // Now fetch the actual entity details for each
+    // Now fetch the actual item details for each entity
     const entitiesWithDetails = await Promise.all(
         entities.map(async (entity) => {
             try {
-                let details = null;
-
-                // Fetch entity details based on type
-                switch (entity.entityType) {
-                    case 'book':
-                        const bookResponse = await axios.get(`${API_URL}/api/books/${entity.entityId}`);
-                        details = bookResponse.data;
-                        entity.entityName = details.name || details.title || entity.entityName;
-                        break;
-                    case 'person':
-                        const personResponse = await axios.get(`${API_URL}/api/people/${entity.entityId}`);
-                        details = personResponse.data;
-                        entity.entityName = details.name || entity.entityName;
-                        break;
-                    // Add other entity types as needed
-                }
+                const itemResponse = await axios.get<Item>(`${API_URL}/api/items/${entity.itemId}`);
+                const item = itemResponse.data;
 
                 return {
                     ...entity,
-                    details
+                    itemName: item.name || entity.itemName,
+                    details: item
                 };
             } catch (error) {
-                console.warn(`Failed to fetch details for ${entity.entityType} ${entity.entityId}:`, error);
+                console.warn(`Failed to fetch details for item ${entity.itemId}:`, error);
                 return entity;
             }
         })
@@ -98,7 +94,7 @@ export const getCollectionEntities = async (collectionId: number): Promise<Colle
         if (a.position && b.position) {
             return a.position - b.position;
         }
-        return a.entityName.localeCompare(b.entityName);
+        return a.itemName.localeCompare(b.itemName);
     });
 };
 
@@ -116,4 +112,81 @@ export const getCollectionWithEntities = async (collectionId: number): Promise<C
         definition,
         entities
     };
+};
+
+export const createCollection = async (
+    name: string,
+    description?: string,
+    curator?: string
+): Promise<CollectionDefinition> => {
+    // First create the collection as an item
+    const collectionItem = await axios.post<Item>(`${API_URL}/api/items`, {
+        itemType: 'collection',
+        name,
+        description,
+        attributes: {
+            curator,
+            itemCount: 0
+        }
+    });
+
+    // Then create the collection_definition relationship
+    const relationshipData = {
+        name,
+        relationshipType: 'collection_definition',
+        sourceItemId: collectionItem.data.id,
+        targetItemId: collectionItem.data.id,
+        attributes: {
+            description,
+            curator
+        }
+    };
+
+    await axios.post(`${API_URL}/api/relationships`, relationshipData);
+
+    return {
+        id: collectionItem.data.id,
+        name,
+        description,
+        curator
+    };
+};
+
+export const addItemToCollection = async (
+    collectionId: number,
+    itemId: number,
+    position?: number
+): Promise<void> => {
+    const relationshipData = {
+        name: `Item ${itemId} in Collection ${collectionId}`,
+        relationshipType: 'collection',
+        sourceItemId: itemId,
+        targetItemId: collectionId,
+        attributes: {
+            position,
+            added_date: new Date().toISOString()
+        }
+    };
+
+    await axios.post(`${API_URL}/api/relationships`, relationshipData);
+};
+
+export const removeItemFromCollection = async (
+    collectionId: number,
+    itemId: number
+): Promise<void> => {
+    // Find the relationship to delete
+    const relationships = await axios.get<Relationship[]>(
+        `${API_URL}/api/relationships/collection/${collectionId}`
+    );
+
+    const relationshipToDelete = relationships.data.find(rel =>
+        rel.relationshipType === 'collection' &&
+        rel.sourceItemId === itemId &&
+        rel.targetItemId === collectionId
+    );
+
+    if (relationshipToDelete) {
+        await axios.delete(`${API_URL}/api/relationships/${relationshipToDelete.id}`);
+    }
 };
