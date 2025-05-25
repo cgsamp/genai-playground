@@ -30,12 +30,15 @@ public class SummaryController {
      */
     @GetMapping("/items")
     public ResponseEntity<List<DetailedSummaryRecord>> getSummariesForItems(
-            @RequestParam List<Long> itemIds
+            @RequestParam(required = false) List<Long> itemIds
     ) {
         log.debug("Finding summaries for itemIds: {}", itemIds);
         try {
+            // If no itemIds provided or empty list, return all summaries
             if (itemIds == null || itemIds.isEmpty()) {
-                return ResponseEntity.badRequest().build();
+                log.debug("No itemIds provided, returning all summaries");
+                List<DetailedSummaryRecord> summaries = summaryService.findAllDetailedSummaryRecords();
+                return ResponseEntity.ok(summaries);
             }
 
             List<DetailedSummaryRecord> summaries = summaryService.findByItemIds(itemIds);
@@ -45,7 +48,6 @@ public class SummaryController {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR, "Error fetching summaries", e);
         }
     }
-
     /**
      * Get summaries for a single item
      */

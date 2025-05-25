@@ -50,17 +50,6 @@ public interface RelationshipRepository extends JpaRepository<Relationship, Long
             " (r.sourceItemId = :item2Id AND r.targetItemId = :item1Id))")
     List<Relationship> findBetweenItems(@Param("item1Id") Long item1Id, @Param("item2Id") Long item2Id);
 
-    // Find relationships of specific type between items
-    @Query("SELECT r FROM Relationship r WHERE " +
-            "r.relationshipType = :relationshipType AND " +
-            "((r.sourceItemId = :item1Id AND r.targetItemId = :item2Id) OR " +
-            " (r.sourceItemId = :item2Id AND r.targetItemId = :item1Id))")
-    List<Relationship> findBetweenItemsOfType(
-            @Param("item1Id") Long item1Id,
-            @Param("item2Id") Long item2Id,
-            @Param("relationshipType") String relationshipType
-    );
-
     // Analytics queries
     @Query("SELECT r.relationshipType, COUNT(r) FROM Relationship r GROUP BY r.relationshipType")
     List<Object[]> countByRelationshipType();
