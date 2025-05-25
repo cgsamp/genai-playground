@@ -49,7 +49,7 @@ export interface ItemSummary {
 }
 
 export interface SelectedItem {
-    id: number;
+    id: ID;
     itemType: string;
     name: string;
 }

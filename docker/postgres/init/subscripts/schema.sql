@@ -110,7 +110,6 @@ CREATE TABLE relationships
 CREATE TABLE summaries
 (
     id                     bigserial PRIMARY KEY,
-    name                   varchar(255)             NOT NULL,
     batch_id               bigint,
     model_configuration_id bigint,
     item_id                bigint                   NOT NULL,

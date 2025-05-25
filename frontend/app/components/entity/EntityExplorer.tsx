@@ -173,8 +173,8 @@ const EntityExplorer = () => {
                     setSummaries(summariesData);
                     break;
                 case 'relationships':
-                    // This would need to be updated based on your new relationship API
-                    const relationshipsData = await fetch('/api/relationships').then(r => r.json());
+                    // Fixed: Now using the proper API method with correct URL
+                    const relationshipsData = await api.relationships.getAllRelationships();
                     setRelationships(relationshipsData);
                     break;
                 default:
@@ -199,11 +199,11 @@ const EntityExplorer = () => {
             // Get summaries for this item
             const summariesData = await api.items.getItemSummaries([item.id]);
 
-            // Get relationships would need to be implemented based on your new API
-            // const relationshipsData = await api.relationships.getRelationshipsForItem(item.id);
+            // Get relationships for this item - now using the proper API
+            const relationshipsData = await api.relationships.getRelationshipsForItem(item.id);
 
             setRelatedItems({
-                relationships: [], // relationshipsData,
+                relationships: relationshipsData,
                 summaries: summariesData
             });
         } catch (err) {
@@ -220,9 +220,10 @@ const EntityExplorer = () => {
             return item.name;
         }
         if ('itemName' in item) {
-            return item.itemName || `Item ${item.id}`;
+            return item.itemName || `Item ${item.itemId}`;
         }
-        return `${itemType} ${item.id}`;
+        console.warn('Unexpected item type in getItemName:', item);
+        return `${itemType} (unknown)`;
     };
 
     const renderTabContent = () => {
@@ -274,18 +275,18 @@ const EntityExplorer = () => {
                         <p className="text-gray-600 text-sm">Published: {book.createdYear || 'Unknown'}</p>
                         {book.attributes && (
                             <div className="mt-2 text-sm">
-                                {book.attributes.genre && (
+                                {book.attributes["genre"] as string && (
                                     <span className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700 mr-1">
-                                        {String(book.attributes.genre)}
+                                        {String(book.attributes["genre"])}
                                     </span>
                                 )}
-                                {book.attributes.rank && (
+                                {book.attributes["rank"] as string && (
                                     <span className="inline-block bg-blue-200 rounded-full px-2 py-1 text-xs font-semibold text-blue-700 mr-1">
-                                        Rank: {String(book.attributes.rank)}
+                                        Rank: {String(book.attributes["rank"])}
                                     </span>
                                 )}
-                                {book.attributes.pages && (
-                                    <span className="text-gray-500 text-xs">{String(book.attributes.pages)} pages</span>
+                                {book.attributes["pages"] as string && (
+                                    <span className="text-gray-500 text-xs">{String(book.attributes["pages"])} pages</span>
                                 )}
                             </div>
                         )}
@@ -313,16 +314,16 @@ const EntityExplorer = () => {
                         onClick={() => handleItemSelect(person, 'person')}
                     >
                         <h3 className="font-semibold text-lg">{person.name}</h3>
-                        <p className="text-gray-600">{person.attributes?.occupation || 'Unknown occupation'}</p>
-                        {person.attributes?.email && <p className="text-gray-500 text-sm">{String(person.attributes.email)}</p>}
-                        {person.attributes?.birth_date && (
+                        <p className="text-gray-600">{person.attributes["occupation"] as string || 'Unknown occupation'}</p>
+                        {person.attributes["email"] as string && <p className="text-gray-500 text-sm">{String(person.attributes["email"])}</p>}
+                        {person.attributes["birth_date"] as string && (
                             <p className="text-gray-500 text-sm">
-                                Born: {new Date(String(person.attributes.birth_date)).toLocaleDateString()}
+                                Born: {new Date(String(person.attributes["birth_date"])).toLocaleDateString()}
                             </p>
                         )}
-                        {person.attributes?.nationality && (
+                        {person.attributes["nationality"] as string && (
                             <span className="inline-block bg-gray-200 rounded-full px-2 py-1 text-xs font-semibold text-gray-700 mt-2">
-                                {String(person.attributes.nationality)}
+                                {String(person.attributes["nationality"])}
                             </span>
                         )}
                     </div>
