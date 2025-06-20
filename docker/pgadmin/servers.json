@@ -1,0 +1,15 @@
+{
+  "Servers": {
+    "1": {
+      "Name": "GenAI PostgreSQL",
+      "Group": "Servers",
+      "Host": "postgres",
+      "Port": 5432,
+      "MaintenanceDB": "playground",
+      "Username": "genai",
+      "UseSSLMode": 0,
+      "SSLMode": "prefer",
+      "PassFile": "/pgpass"
+    }
+  }
+}
