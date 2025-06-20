@@ -14,17 +14,33 @@ yarn-error.log*
 
 # Spring Boot / Backend
 target/
-.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-# IDE - IntelliJ
-.idea/
-*.iws
-*.iml
-*.ipr
-out/
-.idea_modules/
+# Keep some IntelliJ config files for convenience
+.idea/*
+!.idea/modules.xml
+!.idea/runConfigurations/
+!.idea/codeStyles/
+!.idea/inspectionProfiles/
+
+# IDE user-specific files
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/dictionaries/
+.idea/shelf/
+.idea/dataSources/
+.idea/dataSources.ids
+.idea/dataSources.local.xml
+.idea/sqlDataSources.xml
+.idea/dynamic.xml
+.idea/uiDesigner.xml
+.idea/gradle.xml
+.idea/libraries/
+
+# Module files - including for convenience
+# *.iml
 
 # IDE - VS Code
 .vscode/
@@ -36,9 +52,14 @@ out/
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
+
+# Maven
+.mvn/wrapper/maven-wrapper.jar
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.properties
 
 # Compiled class files
 *.class
@@ -81,6 +102,12 @@ Thumbs.db
 # Docker
 docker-compose.override.yml
 
+# Cache files
+.cache/
+.eslintcache
+.npm
+.sass-cache
+
 # Generated files
 dist/
 build/
@@ -88,20 +115,7 @@ public/sitemap.xml
 public/sitemap.xml.gz
 public/robots.txt
 
-# Cache files
-.cache/
-.eslintcache
-.npm
-.sass-cache
-
-# Debug logs
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-debug.log
-
 # Misc
-coverage/
 .temp/
 temp/
 tmp/

@@ -6,8 +6,17 @@ APP_DATABASE=${APP_DATABASE:-playground}
 POSTGRES_APP_USER=${POSTGRES_APP_USER:-genai}
 POSTGRES_APP_PASSWORD=${POSTGRES_APP_PASSWORD:-genai}
 
-SCRIPT_DIR="$(dirname "$0")"
-SUBSCRIPTS_DIR="${SCRIPT_DIR}/subscripts"
+SCRIPT_DIRECTORY="/docker-entrypoint-initdb.d"
+
+echo "=== DEBUG INFO ==="
+echo "Current working directory: $(pwd)"
+echo "Script location: $0"
+echo "Contents of current directory:"
+ls -la
+echo "Contents of /docker-entrypoint-initdb.d/:"
+ls -la /docker-entrypoint-initdb.d/
+echo "=================="
+
 
 echo "Checking for database '$APP_DATABASE'..."
 
@@ -33,7 +42,7 @@ else
   fi
 
   echo "Creating schema..."
-  psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "${SUBSCRIPTS_DIR}/schema.sql"
+  psql -U "$POSTGRES_USER" -d "$APP_DATABASE" -f "$SCRIPT_DIRECTORY/subscripts/schema.sql"
 
   echo "Granting privileges to '$POSTGRES_APP_USER'..."
   psql -U "$POSTGRES_USER" -d "postgres" -c "GRANT ALL PRIVILEGES ON DATABASE \"$APP_DATABASE\" TO \"$POSTGRES_APP_USER\";"
