@@ -1,0 +1,5 @@
+@env = dev
+
+### Get list of available OpenAI models
+GET https://api.openai.com/v1/models
+Authorization: Bearer {{OPENAI_API_KEY}}

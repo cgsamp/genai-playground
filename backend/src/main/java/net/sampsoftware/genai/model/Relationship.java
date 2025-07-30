@@ -1,6 +1,7 @@
 package net.sampsoftware.genai.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.node.JsonNodeFactory;
 import jakarta.persistence.*;
 import lombok.*;
 import org.hibernate.annotations.DynamicUpdate;
@@ -49,7 +50,8 @@ public class Relationship {
      */
     @Column(columnDefinition = "jsonb")
     @JdbcTypeCode(SqlTypes.JSON)
-    private JsonNode attributes;
+    @Builder.Default
+    private JsonNode attributes = JsonNodeFactory.instance.objectNode();
 
     @Column(nullable = false, updatable = false)
     private LocalDateTime createdAt;

@@ -88,6 +88,8 @@ logs/
 .env.test.local
 .env.production.local
 .env.*.local
+.http.env.json
+*.private.*
 !.env.example
 
 # OS specific files

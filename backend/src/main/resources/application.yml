@@ -12,7 +12,7 @@ spring:
     name: genai
 
   datasource:
-    url: jdbc:postgresql://${POSTGRES_SERVER}:${POSTGRES_PORT}}/${APP_DATABASE}
+    url: jdbc:postgresql://${POSTGRES_SERVER}:${POSTGRES_PORT}/${APP_DATABASE}
     username: ${POSTGRES_APP_USERNAME}
     password: ${POSTGRES_APP_PASSWORD}
     driver-class-name: org.postgresql.Driver
@@ -21,6 +21,7 @@ spring:
     hibernate:
       ddl-auto: validate
     show-sql: false
+    database-platform: org.hibernate.dialect.PostgreSQLDialect
 
   sql:
     init:
