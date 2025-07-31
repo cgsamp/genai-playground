@@ -61,6 +61,24 @@ services:
       - genai-network
     command: ["mvn", "spring-boot:run"]
 
+  frontend:
+    build:
+      context: ..
+      dockerfile: docker/frontend/Dockerfile
+    container_name: genai-frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ../frontend:/app
+      - /app/node_modules
+      - /app/.next
+    environment:
+      - NEXT_PUBLIC_API_BASE_URL=http://localhost:${BACKEND_PORT:-8080}
+    depends_on:
+      - backend
+    networks:
+      - genai-network
+
 volumes:
   postgres-data:
     name: genai-postgres-data
