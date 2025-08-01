@@ -8,6 +8,7 @@ import * as collectionsApi from './collections';
 import * as operationsApi from './operations';
 import * as relationshipsApi from './relationships';
 import * as modelCallApi from './modelCalls';
+import * as promptsApi from './prompts';
 
 export const api = {
     items: itemsApi,
@@ -20,4 +21,5 @@ export const api = {
     operations: operationsApi,
     relationships: relationshipsApi,
     modelCalls: modelCallApi,
+    prompts: promptsApi,
 };
