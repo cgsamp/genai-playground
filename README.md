@@ -16,97 +16,79 @@ It also showcases the use of Spring AI and other related technologies.
 ## Technology Stack
 
 ### Backend
-- Java 21
+- Java 21 with Eclipse Temurin JDK
 - Spring Boot 3.4.4
-- Spring AI 1.0.0-M8
-- PostgreSQL
+- Spring AI 1.0.0
+- PostgreSQL 16
 - Hibernate/JPA
-- Maven
+- Maven 3.9.6
+- Docker containerized with hot reload
 
 ### Frontend
-- React with React Router
-- Next.js (alternative frontend implementation)
+- Next.js 15.3.2
+- React 18
+- TypeScript
 - Tailwind CSS
-- Axios
+- Axios for API calls
 - Cytoscape.js for graph visualization
+- Docker containerized with hot reload
 
 ## Prerequisites
 
-- Java 21 or higher
-- Node.js 14+ and npm
-- PostgreSQL 15+
+**For Make setup (Recommended):**
 - Docker and Docker Compose
-- OpenAI API key or other AI model provider credentials
+- Make (see installation instructions below)
+- OpenAI API key
 
-## Setup and Installation
+**For manual setup:**
+- Java 21 or higher
+- Node.js 20+ and npm  
+- PostgreSQL 16+
+- Docker and Docker Compose
+- OpenAI API key
 
-### Environment Setup
+## Quick Start
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-username/genai-playground.git
-   cd genai-dashboard
-   ```
+### Using Make (Recommended)
 
-2. Create a `.env` file in the root directory with the following variables:
-   ```
-   OPENAI_API_KEY=your_openai_api_key
-   POSTGRES_ADMIN_PASSWORD=your_postgres_admin_password
-   POSTGRES_APP_USER=genai
-   POSTGRES_APP_PASSWORD=genai
-   APP_DATABASE=playground
-   ```
-
-### Database Setup
-
-Start the PostgreSQL container:
+**Install Make:**
+- **macOS**: `brew install make` or use Xcode Command Line Tools
+- **Windows**: `choco install make` or use WSL/Git Bash
 
 ```bash
-cd docker
-docker-compose up -d
+# Start everything (interactive .env setup if needed)
+make start
+
+# Start with live logs
+make start-watch
+
+# Stop all services
+make stop
+
+# Reset database
+make reset-db
+
+# View all commands
+make help
 ```
 
-### Backend Setup
+Access URLs:
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:8080
+- pgAdmin: http://localhost:8081
+- PostgreSQL: localhost:5433
 
-1. Navigate to the backend directory:
-   ```bash
-   cd backend
-   ```
+### Manual Setup (Alternative)
 
-2. Build and run the Spring Boot application:
-   ```bash
-   ./run.sh spring-boot:run
-   ```
-
-   Alternatively, you can use:
-   ```bash
-   ./mvnw clean package
-   java -jar target/genai-0.0.1-SNAPSHOT.jar
-   ```
-
-### Frontend Setup
-
-1. Navigate to the frontend directory:
-   ```bash
-   cd frontend
-   ```
-
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-
-3. Start the development server:
-   ```bash
-   npm start
-   ```
-
-4. The application will be available at `http://localhost:3000`
+1. Clone and create `.env` file (see `.env.example`)
+2. Start services: `cd docker && docker-compose up`
 
 ## Project Structure
 
 ```
-genai-dashboard/
+genai-playground/
+├── Makefile                 # Project management commands
+├── .env.example             # Environment variables template
 ├── backend/                 # Spring Boot backend
 │   ├── src/                 # Source code
 │   │   ├── main/
@@ -115,8 +97,23 @@ genai-dashboard/
 │   │   └── test/            # Test code
 │   └── pom.xml              # Maven dependencies
 ├── frontend/                # Next.js frontend
+│   ├── app/                 # Next.js app directory
+│   ├── package.json         # Node.js dependencies
+│   └── tsconfig.json        # TypeScript configuration
 ├── docker/                  # Docker configuration
 │   ├── docker-compose.yml   # Container orchestration
+│   ├── backend/             # Backend Docker setup
+│   ├── frontend/            # Frontend Docker setup
 │   └── postgres/            # PostgreSQL setup
 │       └── init/            # Database initialization scripts
 ```
+
+## Development
+
+The project uses Docker Compose to orchestrate:
+- **PostgreSQL** database with initialization scripts
+- **pgAdmin** for database management
+- **Spring Boot backend** with Maven and Temurin 21
+- **Next.js frontend** with Node.js 20 and hot reloading
+
+All services are containerized and configured for development with live code reloading.

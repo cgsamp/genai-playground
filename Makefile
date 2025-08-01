@@ -1,7 +1,7 @@
 # GenAI Playground Makefile
 # Provides easy commands to manage the Docker-based development environment
 
-.PHONY: help start stop build reset-db clean setup-env logs
+.PHONY: help start start-foreground stop build reset-db clean setup-env logs
 
 # Default target
 help: ## Show this help message
@@ -61,16 +61,24 @@ setup-env: ## Check for .env file and create it from user input if missing
 # Start the development environment
 start: setup-env ## Start the complete development environment (database + backend + frontend)
 	@echo "🚀 Starting GenAI Playground development environment..."
-	@cd docker && docker-compose up --build
-
-# Start in detached mode
-start-daemon: setup-env ## Start the development environment in background
-	@echo "🚀 Starting GenAI Playground in background..."
 	@cd docker && docker-compose up --build -d
-	@echo "✅ Services started in background"
-	@echo "📱 Frontend: http://localhost:3000"
-	@echo "🔧 Backend API: http://localhost:8080"
-	@echo "🗄️  pgAdmin: http://localhost:8081"
+	@echo "✅ Services started successfully!"
+	@echo ""
+	@echo "🔗 Access URLs:"
+	@echo "  📱 Frontend:    http://localhost:3000"
+	@echo "  🔧 Backend API: http://localhost:8080"
+	@echo "  🗄️  pgAdmin:     http://localhost:8081"
+	@echo "  🐘 PostgreSQL:  localhost:5433"
+	@echo ""
+	@echo "📋 Useful commands:"
+	@echo "  make logs       - View all service logs"
+	@echo "  make status     - Check service status"
+	@echo "  make stop       - Stop all services"
+
+# Start in foreground mode (for debugging)
+start-foreground: setup-env ## Start the development environment in foreground (for debugging)
+	@echo "🚀 Starting GenAI Playground in foreground mode..."
+	@cd docker && docker-compose up --build
 
 # Stop the development environment
 stop: ## Stop all running services
