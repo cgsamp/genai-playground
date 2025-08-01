@@ -6,6 +6,8 @@ CREATE SEQUENCE model_configuration_id_seq;
 CREATE SEQUENCE item_summary_id_seq;
 CREATE SEQUENCE model_parameter_id_seq;
 CREATE SEQUENCE model_calls_id_seq;
+CREATE SEQUENCE prompt_type_id_seq;
+CREATE SEQUENCE prompt_id_seq;
 
 DROP TABLE IF EXISTS model_calls CASCADE;
 DROP TABLE IF EXISTS summaries CASCADE;
@@ -16,6 +18,8 @@ DROP TABLE IF EXISTS model_configuration CASCADE;
 DROP TABLE IF EXISTS items CASCADE;
 DROP TABLE IF EXISTS model CASCADE;
 DROP TABLE IF EXISTS messages CASCADE;
+DROP TABLE IF EXISTS prompt CASCADE;
+DROP TABLE IF EXISTS prompt_type CASCADE;
 
 CREATE TABLE messages
 (
@@ -287,6 +291,46 @@ COMMENT
 ON TABLE summaries IS 'Unified summary table for all item types';
 COMMENT
 ON TABLE item_summary IS 'Legacy summary table - migrate to summaries table';
+
+-- Prompt Type lookup table
+CREATE TABLE prompt_type
+(
+    id          integer                  NOT NULL DEFAULT nextval('prompt_type_id_seq'::regclass),
+    prompt_type varchar(50)              NOT NULL,
+    description varchar(255),
+    created_at  timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at  timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT prompt_type_pkey PRIMARY KEY (id),
+    CONSTRAINT prompt_type_prompt_type_key UNIQUE (prompt_type)
+);
+
+-- Prompts table  
+CREATE TABLE prompt
+(
+    id         integer                  NOT NULL DEFAULT nextval('prompt_id_seq'::regclass),
+    name       varchar(255)             NOT NULL,
+    text       text                     NOT NULL,
+    type_id    integer                  NOT NULL,
+    created_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    updated_at timestamp without time zone DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT prompt_pkey PRIMARY KEY (id),
+    CONSTRAINT prompt_type_id_fkey FOREIGN KEY (type_id)
+        REFERENCES prompt_type (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE RESTRICT
+);
+
+-- Indexes for prompts
+CREATE INDEX idx_prompt_type_id ON prompt (type_id);
+CREATE INDEX idx_prompt_name ON prompt (name);
+CREATE INDEX idx_prompt_created_at ON prompt (created_at);
+
+-- Comments for prompts tables
+COMMENT ON TABLE prompt_type IS 'Lookup table for prompt types (System, User, etc.)';
+COMMENT ON TABLE prompt IS 'System and user prompts for AI interactions';
+COMMENT ON COLUMN prompt.name IS 'Human-readable name for the prompt';
+COMMENT ON COLUMN prompt.text IS 'The actual prompt text content';
+COMMENT ON COLUMN prompt.type_id IS 'Foreign key to prompt_type table';
 
 -- Triggers for updated_at timestamps
 CREATE
