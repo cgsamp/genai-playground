@@ -2,28 +2,29 @@
 
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { API_URL } from '@/app/config';
 
-// Define types for our data
+// Define types for our data - Updated to match backend Item model
 interface Book {
     id: number;
-    rank: number;
+    itemType: string;
     name: string;
-    authorName: string;
-    publishYear: string;
-    source?: {
-        id: number;
-        orgName: string;
-        publishDate: string;
+    description?: string;
+    creator?: string;        // This is the author
+    createdYear?: string;    // This is the publish year
+    attributes?: {
+        rank?: number;
+        isbn?: string;
+        [key: string]: any;
     };
 }
 
 interface Summary {
     id: number;
-    entityId: number;
-    entityType: string;
-    entityName?: string;
-    entityDetails?: string;
-    content: string;  // Changed from 'summary' to 'content'
+    itemId: number;         // Updated to match backend
+    itemName?: string;      // Updated to match backend
+    itemDetails?: string;   // Updated to match backend
+    content: string;
     modelName: string;
     modelProvider: string;
     modelId: number;
@@ -47,29 +48,24 @@ const BooksPanel: React.FC = () => {
     const fetchBooksAndSummaries = async (): Promise<void> => {
         setIsLoading(true);
         try {
-            const booksResponse = await axios.get<Book[]>('http://localhost:8080/api/books');
+            // Use items API filtered by itemType=book
+            const booksResponse = await axios.get<Book[]>(`${API_URL}/api/items?itemType=book`);
             const books = booksResponse.data;
             setBooks(books);
 
             if (books.length > 0) {
                 const bookIds = books.map(book => book.id).join(',');
 
-                // Try both entity types to ensure we get summaries
-                let summariesResponse;
+                // Get summaries for these items
                 try {
-                    // First try 'book' entity type
-                    summariesResponse = await axios.get<Summary[]>(
-                        `http://localhost:8080/api/summaries/entity/book?entityIds=${bookIds}`
+                    const summariesResponse = await axios.get<Summary[]>(
+                        `${API_URL}/api/summaries/items?itemIds=${bookIds}`
                     );
-                } catch (bookError) {
-                    // If that fails, try 'ranked_book' entity type
-                    console.warn('Failed to fetch summaries for entity type "book", trying "ranked_book"');
-                    summariesResponse = await axios.get<Summary[]>(
-                        `http://localhost:8080/api/summaries/entity/ranked_book?entityIds=${bookIds}`
-                    );
+                    setSummaries(summariesResponse.data);
+                } catch (summaryError) {
+                    console.warn('Failed to fetch summaries for books:', summaryError);
+                    setSummaries([]);
                 }
-
-                setSummaries(summariesResponse.data);
             }
 
             setError(null);
@@ -82,7 +78,7 @@ const BooksPanel: React.FC = () => {
     };
 
     const getSummariesForBook = (bookId: number): Summary[] => {
-        return summaries.filter(s => s.entityId === bookId);
+        return summaries.filter(s => s.itemId === bookId);
     };
 
     const toggleSummaryExpansion = (summaryId: number): void => {
@@ -178,13 +174,13 @@ const BooksPanel: React.FC = () => {
                                 <div className="w-56 flex-none">
                                     <div className="flex">
                                         <div className="w-8 flex-none text-lg font-semibold text-gray-700 mr-2">
-                                            {book.rank}
+                                            {book.attributes?.rank || '#'}
                                         </div>
 
                                         <div>
                                             <div className="font-semibold text-gray-900">{book.name}</div>
                                             <div className="text-sm text-gray-600">
-                                                {book.authorName} • {book.publishYear}
+                                                {book.creator} • {book.createdYear}
                                             </div>
                                         </div>
                                     </div>

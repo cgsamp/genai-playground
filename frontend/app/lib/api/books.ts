@@ -3,13 +3,14 @@ import { Book, EntitySummary } from '@/app/types';
 import { API_URL } from '@/app/config';
 
 export const getBooks = async (): Promise<Book[]> => {
-    const response = await axios.get<Book[]>(`${API_URL}/api/books`);
+    // Use items API with book type filter
+    const response = await axios.get<Book[]>(`${API_URL}/api/items?itemType=book`);
     return response.data;
 };
 
 export const getBookSummaries = async (bookIds: number[]): Promise<EntitySummary[]> => {
     const response = await axios.get<EntitySummary[]>(
-        `${API_URL}/api/summaries?entity=ranked_book&entityIds=${bookIds.join(',')}`
+        `${API_URL}/api/summaries?entity=book&entityIds=${bookIds.join(',')}`
     );
     return response.data;
 };

@@ -1,4 +1,5 @@
 import * as itemsApi from './items';
+import * as booksApi from './books';
 import * as chatApi from './chat';
 import * as modelsApi from './models';
 import * as configsApi from './configs';
@@ -10,6 +11,7 @@ import * as modelCallApi from './modelCalls';
 
 export const api = {
     items: itemsApi,
+    books: booksApi,
     chat: chatApi,
     models: modelsApi,
     configs: configsApi,

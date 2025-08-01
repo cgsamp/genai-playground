@@ -17,7 +17,7 @@
         <java.version>21</java.version>
         <spring-ai.version>1.0.0</spring-ai.version>
         <mapstruct.version>1.5.5.Final</mapstruct.version>
-        <lombok.version>1.18.30</lombok.version>
+        <lombok.version>1.18.34</lombok.version>
     </properties>
 
     <dependencies>
@@ -163,10 +163,13 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.10.1</version>
+                <version>3.11.0</version>
                 <configuration>
                     <source>${java.version}</source>
                     <target>${java.version}</target>
+                    <release>${java.version}</release>
+                    <executable>${java.home}/bin/javac</executable>
+                    <fork>true</fork>
                     <annotationProcessorPaths>
                         <path>
                             <groupId>org.projectlombok</groupId>
@@ -187,6 +190,16 @@
                     <compilerArgs>
                         <compilerArg>-Amapstruct.defaultComponentModel=spring</compilerArg>
                         <compilerArg>-Amapstruct.verbose=true</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.code=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.comp=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.file=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.main=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.model=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.parser=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.processing=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.tree=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.util=ALL-UNNAMED</compilerArg>
+                        <compilerArg>-J--add-opens=jdk.compiler/com.sun.tools.javac.jvm=ALL-UNNAMED</compilerArg>
                     </compilerArgs>
                 </configuration>
             </plugin>

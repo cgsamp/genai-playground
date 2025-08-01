@@ -121,3 +121,5 @@ public/robots.txt
 .temp/
 temp/
 tmp/
+
+.claude

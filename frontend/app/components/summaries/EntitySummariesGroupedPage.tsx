@@ -11,6 +11,7 @@ export default function EntitySummariesGroupedPage() {
     const [searchTerm, setSearchTerm] = useState('');
 
     const handleRefresh = () => {
+        console.info('User triggered summaries refresh');
         refreshSummaries();
     };
 
@@ -26,6 +27,8 @@ export default function EntitySummariesGroupedPage() {
     });
 
     const handleExport = () => {
+        console.info(`Exporting ${filteredSummaries.length} summaries to CSV`);
+        
         const csvContent = [
             ['Item ID', 'Item Name', 'Model', 'Summary', 'Created'].join(','),
             ...filteredSummaries.map(s => [
@@ -40,10 +43,13 @@ export default function EntitySummariesGroupedPage() {
         const blob = new Blob([csvContent], { type: 'text/csv' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
+        const filename = `entity-summaries-${new Date().toISOString().split('T')[0]}.csv`;
         a.href = url;
-        a.download = `entity-summaries-${new Date().toISOString().split('T')[0]}.csv`;
+        a.download = filename;
         a.click();
         URL.revokeObjectURL(url);
+        
+        console.info(`CSV export completed: ${filename}`);
     };
 
     return (

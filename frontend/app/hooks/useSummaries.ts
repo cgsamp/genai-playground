@@ -4,22 +4,8 @@
 import { useState, useEffect } from 'react';
 import { useApiError } from './useApiError';
 import { API_URL } from '@/app/config';
+import { DetailedSummaryRecord } from '@/app/types/model';
 import axios from 'axios';
-
-interface DetailedSummaryRecord {
-    id: number;
-    itemId: number;
-    itemName: string;
-    itemDetails?: string;
-    content: string;
-    modelName: string;
-    modelProvider: string;
-    modelId: number;
-    modelConfigurationId: number;
-    modelConfig: any;
-    configComment: string;
-    createdAt: string;
-}
 
 export function useSummaries() {
     const [summaries, setSummaries] = useState<DetailedSummaryRecord[]>([]);
@@ -29,11 +15,20 @@ export function useSummaries() {
     const fetchSummaries = async () => {
         clearError();
         setLoading(true);
+        const startTime = Date.now();
+        
         try {
+            console.info('Fetching summaries from API');
             const response = await axios.get<DetailedSummaryRecord[]>(`${API_URL}/api/summaries`);
+            
+            const duration = Date.now() - startTime;
+            console.info(`Successfully fetched ${response.data.length} summaries in ${duration}ms`);
+            
             setSummaries(response.data);
         } catch (err) {
-            handleApiError(err);
+            const duration = Date.now() - startTime;
+            console.error(`Failed to fetch summaries after ${duration}ms`);
+            handleApiError(err, { method: 'GET', url: '/api/summaries' });
         } finally {
             setLoading(false);
         }

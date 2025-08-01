@@ -20,12 +20,22 @@ export interface ModelParameter {
     displayOrder: number;
 }
 
+export interface ModelConfigurationParameters {
+    temperature?: number;
+    max_tokens?: number;
+    top_p?: number;
+    frequency_penalty?: number;
+    presence_penalty?: number;
+    stop?: string[];
+    [key: string]: unknown;
+}
+
 export interface ModelConfiguration {
     id: ID;
     modelId: ID;
     modelName?: string;
     modelProvider?: string;
-    modelConfig: Record<string, any>;
+    modelConfig: ModelConfigurationParameters;
     comment: string;
     createdAt: string;
 }
@@ -47,7 +57,22 @@ export interface EntitySummary {
     modelProvider: string;
     modelId: ID;
     modelConfigurationId: ID;
-    modelConfig: Record<string, any>;
+    modelConfig: ModelConfigurationParameters;
+    configComment: string;
+    createdAt: string;
+}
+
+export interface DetailedSummaryRecord {
+    id: number;
+    itemId: number;
+    itemName: string;
+    itemDetails?: string;
+    content: string;
+    modelName: string;
+    modelProvider: string;
+    modelId: number;
+    modelConfigurationId: number;
+    modelConfig: ModelConfigurationParameters;
     configComment: string;
     createdAt: string;
 }

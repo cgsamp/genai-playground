@@ -1,7 +1,7 @@
 # GenAI Playground Makefile
 # Provides easy commands to manage the Docker-based development environment
 
-.PHONY: help start start-foreground stop build reset-db clean setup-env logs
+.PHONY: help start start-watch stop build reset-db clean setup-env logs
 
 # Default target
 help: ## Show this help message
@@ -75,9 +75,9 @@ start: setup-env ## Start the complete development environment (database + backe
 	@echo "  make status     - Check service status"
 	@echo "  make stop       - Stop all services"
 
-# Start in foreground mode (for debugging)
-start-foreground: setup-env ## Start the development environment in foreground (for debugging)
-	@echo "🚀 Starting GenAI Playground in foreground mode..."
+# Start with logs (attached mode)
+start-watch: setup-env ## Start the development environment and watch logs
+	@echo "🚀 Starting GenAI Playground with live logs..."
 	@cd docker && docker-compose up --build
 
 # Stop the development environment

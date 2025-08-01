@@ -1,15 +1,26 @@
 package net.sampsoftware.genai.dto;
 
-import java.time.Instant;
+import lombok.Builder;
+import lombok.Data;
 
-public record ErrorResponse(
-        String error,
-        String message,
-        String timestamp,
-        String path
-) {
+import java.time.LocalDateTime;
+
+@Data
+@Builder
+public class ErrorResponse {
+    private LocalDateTime timestamp;
+    private int status;
+    private String error;
+    private String message;
+    private String path;
+    private String errorCode;
+
     public static ErrorResponse of(String error, String message, String path) {
-        return new ErrorResponse(error, message,
-                Instant.now().toString(), path);
+        return ErrorResponse.builder()
+                .error(error)
+                .message(message)
+                .path(path)
+                .timestamp(LocalDateTime.now())
+                .build();
     }
 }

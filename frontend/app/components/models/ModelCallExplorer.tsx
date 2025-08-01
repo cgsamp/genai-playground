@@ -39,6 +39,270 @@ const JsonViewer: React.FC<JsonViewerProps> = ({ data, title, defaultExpanded = 
     );
 };
 
+// Model Call Comparison Component
+interface ModelCallComparisonProps {
+    calls: ModelCallRecord[];
+    onClose: () => void;
+}
+
+const ModelCallComparison: React.FC<ModelCallComparisonProps> = ({ calls, onClose }) => {
+    const formatDate = (dateString: string) => {
+        return new Date(dateString).toLocaleString();
+    };
+
+    const formatDuration = (ms?: number) => {
+        if (!ms) return 'N/A';
+        if (ms < 1000) return `${ms}ms`;
+        return `${(ms / 1000).toFixed(2)}s`;
+    };
+
+    if (calls.length !== 2) {
+        return null;
+    }
+
+    const [call1, call2] = calls;
+
+    const ComparisonField: React.FC<{
+        label: string;
+        value1: any;
+        value2: any;
+        formatter?: (value: any) => string;
+    }> = ({ label, value1, value2, formatter }) => {
+        const isDifferent = JSON.stringify(value1) !== JSON.stringify(value2);
+        const format = formatter || ((v) => v?.toString() || 'N/A');
+        
+        return (
+            <div className={`p-3 rounded ${isDifferent ? 'bg-yellow-50 border-l-4 border-yellow-400' : 'bg-gray-50'}`}>
+                <div className="font-medium text-sm text-gray-700 mb-2">{label}</div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div className="text-sm">
+                        <div className="text-xs text-gray-500 mb-1">Call #{call1.id}</div>
+                        <div>{format(value1)}</div>
+                    </div>
+                    <div className="text-sm">
+                        <div className="text-xs text-gray-500 mb-1">Call #{call2.id}</div>
+                        <div>{format(value2)}</div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const JsonComparison: React.FC<{
+        title: string;
+        data1: any;
+        data2: any;
+    }> = ({ title, data1, data2 }) => {
+        const [isExpanded, setIsExpanded] = useState(false);
+        const isDifferent = JSON.stringify(data1) !== JSON.stringify(data2);
+
+        if (!data1 && !data2) return null;
+
+        return (
+            <div className={`border rounded-lg ${isDifferent ? 'border-yellow-300' : 'border-gray-200'}`}>
+                <button
+                    className={`w-full px-4 py-2 ${isDifferent ? 'bg-yellow-50' : 'bg-gray-50'} hover:bg-gray-100 border-b flex items-center justify-between text-left font-medium`}
+                    onClick={() => setIsExpanded(!isExpanded)}
+                >
+                    <span className="flex items-center">
+                        {title}
+                        {isDifferent && <span className="ml-2 text-xs bg-yellow-200 text-yellow-800 px-2 py-1 rounded">Different</span>}
+                    </span>
+                    <span className="text-sm text-gray-500">
+                        {isExpanded ? '−' : '+'}
+                    </span>
+                </button>
+                {isExpanded && (
+                    <div className="p-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div>
+                                <div className="text-xs text-gray-500 mb-2">Call #{call1.id}</div>
+                                <pre className="text-xs bg-gray-50 p-3 rounded overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                    {data1 ? JSON.stringify(data1, null, 2) : 'No data'}
+                                </pre>
+                            </div>
+                            <div>
+                                <div className="text-xs text-gray-500 mb-2">Call #{call2.id}</div>
+                                <pre className="text-xs bg-gray-50 p-3 rounded overflow-x-auto whitespace-pre-wrap max-h-64 overflow-y-auto">
+                                    {data2 ? JSON.stringify(data2, null, 2) : 'No data'}
+                                </pre>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        );
+    };
+
+    return (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-7xl w-full max-h-[90vh] overflow-hidden">
+                <div className="flex items-center justify-between p-6 border-b">
+                    <h2 className="text-xl font-semibold">
+                        Compare Model Calls #{call1.id} vs #{call2.id}
+                    </h2>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-600 text-2xl"
+                    >
+                        ×
+                    </button>
+                </div>
+
+                <div className="p-6 overflow-y-auto max-h-[calc(90vh-120px)]">
+                    {/* Quick Comparison Overview */}
+                    <div className="grid grid-cols-2 gap-6 mb-6">
+                        <div className="bg-blue-50 p-4 rounded-lg">
+                            <h3 className="font-medium text-blue-800 mb-2">Call #{call1.id}</h3>
+                            <div className="space-y-1 text-sm">
+                                <div>Status: <span className={call1.success ? 'text-green-600' : 'text-red-600'}>{call1.success ? 'Success' : 'Failed'}</span></div>
+                                <div>Model: {call1.modelName || 'Unknown'}</div>
+                                <div>Duration: {formatDuration(call1.durationMs)}</div>
+                                <div>Created: {formatDate(call1.createdAt)}</div>
+                            </div>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-lg">
+                            <h3 className="font-medium text-purple-800 mb-2">Call #{call2.id}</h3>
+                            <div className="space-y-1 text-sm">
+                                <div>Status: <span className={call2.success ? 'text-green-600' : 'text-red-600'}>{call2.success ? 'Success' : 'Failed'}</span></div>
+                                <div>Model: {call2.modelName || 'Unknown'}</div>
+                                <div>Duration: {formatDuration(call2.durationMs)}</div>
+                                <div>Created: {formatDate(call2.createdAt)}</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Detailed Comparison */}
+                    <div className="space-y-4">
+                        <h3 className="text-lg font-medium">Detailed Comparison</h3>
+                        
+                        <ComparisonField
+                            label="Success Status"
+                            value1={call1.success}
+                            value2={call2.success}
+                            formatter={(v) => v ? 'Success' : 'Failed'}
+                        />
+
+                        <ComparisonField
+                            label="Model"
+                            value1={`${call1.modelName || 'Unknown'} (${call1.modelProvider || call1.provider})`}
+                            value2={`${call2.modelName || 'Unknown'} (${call2.modelProvider || call2.provider})`}
+                        />
+
+                        <ComparisonField
+                            label="Duration"
+                            value1={call1.durationMs}
+                            value2={call2.durationMs}
+                            formatter={formatDuration}
+                        />
+
+                        <ComparisonField
+                            label="API Duration"
+                            value1={call1.apiDurationMs}
+                            value2={call2.apiDurationMs}
+                            formatter={formatDuration}
+                        />
+
+                        <ComparisonField
+                            label="Processing Duration"
+                            value1={call1.processingDurationMs}
+                            value2={call2.processingDurationMs}
+                            formatter={formatDuration}
+                        />
+
+                        <ComparisonField
+                            label="Request Context"
+                            value1={call1.requestContext}
+                            value2={call2.requestContext}
+                        />
+
+                        <ComparisonField
+                            label="Batch ID"
+                            value1={call1.batchId}
+                            value2={call2.batchId}
+                        />
+
+                        <ComparisonField
+                            label="Correlation ID"
+                            value1={call1.correlationId}
+                            value2={call2.correlationId}
+                        />
+
+                        {(!call1.success || !call2.success) && (
+                            <>
+                                <ComparisonField
+                                    label="Error Message"
+                                    value1={call1.errorMessage}
+                                    value2={call2.errorMessage}
+                                />
+
+                                <ComparisonField
+                                    label="Error Class"
+                                    value1={call1.errorClass}
+                                    value2={call2.errorClass}
+                                />
+                            </>
+                        )}
+
+                        {/* JSON Data Comparisons */}
+                        <div className="space-y-4 mt-6">
+                            <h4 className="text-md font-medium">Data Comparison</h4>
+                            
+                            <JsonComparison
+                                title="Prompt Text"
+                                data1={call1.promptText}
+                                data2={call2.promptText}
+                            />
+
+                            <JsonComparison
+                                title="Response Text"
+                                data1={call1.responseText}
+                                data2={call2.responseText}
+                            />
+
+                            <JsonComparison
+                                title="Token Usage"
+                                data1={call1.tokenUsage}
+                                data2={call2.tokenUsage}
+                            />
+
+                            <JsonComparison
+                                title="Chat Options"
+                                data1={call1.chatOptions}
+                                data2={call2.chatOptions}
+                            />
+
+                            <JsonComparison
+                                title="Model Configuration"
+                                data1={call1.modelConfigurationJson}
+                                data2={call2.modelConfigurationJson}
+                            />
+
+                            <JsonComparison
+                                title="Prompt JSON Structure"
+                                data1={call1.promptJson}
+                                data2={call2.promptJson}
+                            />
+
+                            <JsonComparison
+                                title="Response JSON Structure"
+                                data1={call1.responseJson}
+                                data2={call2.responseJson}
+                            />
+
+                            <JsonComparison
+                                title="Metadata"
+                                data1={call1.metadata}
+                                data2={call2.metadata}
+                            />
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // Model Call Detail Component
 interface ModelCallDetailProps {
     modelCall: ModelCallRecord;
@@ -232,6 +496,8 @@ const ModelCallsExplorer: React.FC = () => {
     const [filter, setFilter] = useState<'all' | 'success' | 'failed'>('all');
     const [page, setPage] = useState(0);
     const [totalPages, setTotalPages] = useState(0);
+    const [selectedCalls, setSelectedCalls] = useState<Set<number>>(new Set());
+    const [showComparison, setShowComparison] = useState(false);
 
     useEffect(() => {
         loadData();
@@ -284,6 +550,33 @@ const ModelCallsExplorer: React.FC = () => {
         if (!ms) return 'N/A';
         if (ms < 1000) return `${ms}ms`;
         return `${(ms / 1000).toFixed(2)}s`;
+    };
+
+    const handleCallSelection = (callId: number, isSelected: boolean) => {
+        setSelectedCalls(prev => {
+            const newSet = new Set(prev);
+            if (isSelected) {
+                // Limit to 2 selections for comparison
+                if (newSet.size >= 2) {
+                    // Remove the oldest selection (first item in the set)
+                    const firstItem = newSet.values().next().value;
+                    newSet.delete(firstItem);
+                }
+                newSet.add(callId);
+            } else {
+                newSet.delete(callId);
+            }
+            return newSet;
+        });
+    };
+
+    const getSelectedCallsData = (): ModelCallRecord[] => {
+        return modelCalls.filter(call => selectedCalls.has(call.id));
+    };
+
+    const clearSelection = () => {
+        setSelectedCalls(new Set());
+        setShowComparison(false);
     };
 
     if (isLoading) {
@@ -374,12 +667,35 @@ const ModelCallsExplorer: React.FC = () => {
                     </button>
                 </div>
 
-                <button
-                    onClick={loadData}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                >
-                    Refresh
-                </button>
+                <div className="flex items-center space-x-3">
+                    {selectedCalls.size > 0 && (
+                        <div className="flex items-center space-x-2">
+                            <span className="text-sm text-gray-600">
+                                {selectedCalls.size} selected
+                            </span>
+                            {selectedCalls.size === 2 && (
+                                <button
+                                    onClick={() => setShowComparison(true)}
+                                    className="px-4 py-2 bg-purple-500 text-white rounded-lg hover:bg-purple-600"
+                                >
+                                    Compare
+                                </button>
+                            )}
+                            <button
+                                onClick={clearSelection}
+                                className="px-3 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 text-sm"
+                            >
+                                Clear
+                            </button>
+                        </div>
+                    )}
+                    <button
+                        onClick={loadData}
+                        className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
+                    >
+                        Refresh
+                    </button>
+                </div>
             </div>
 
             {/* Model Calls Table */}
@@ -388,6 +704,20 @@ const ModelCallsExplorer: React.FC = () => {
                     <table className="w-full">
                         <thead className="bg-gray-50 border-b">
                         <tr>
+                            <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase w-12">
+                                <input
+                                    type="checkbox"
+                                    className="rounded"
+                                    checked={selectedCalls.size === modelCalls.length && modelCalls.length > 0}
+                                    onChange={(e) => {
+                                        if (e.target.checked) {
+                                            setSelectedCalls(new Set(modelCalls.slice(0, 2).map(call => call.id)));
+                                        } else {
+                                            setSelectedCalls(new Set());
+                                        }
+                                    }}
+                                />
+                            </th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Model</th>
                             <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Duration</th>
@@ -398,7 +728,15 @@ const ModelCallsExplorer: React.FC = () => {
                         </thead>
                         <tbody className="divide-y divide-gray-200">
                         {modelCalls.map((call) => (
-                            <tr key={call.id} className="hover:bg-gray-50">
+                            <tr key={call.id} className={`hover:bg-gray-50 ${selectedCalls.has(call.id) ? 'bg-blue-50' : ''}`}>
+                                <td className="px-4 py-3 text-center">
+                                    <input
+                                        type="checkbox"
+                                        className="rounded"
+                                        checked={selectedCalls.has(call.id)}
+                                        onChange={(e) => handleCallSelection(call.id, e.target.checked)}
+                                    />
+                                </td>
                                 <td className="px-4 py-3">
                                     <div className="flex items-center">
                                         {call.success ? (
@@ -515,6 +853,14 @@ const ModelCallsExplorer: React.FC = () => {
                 <ModelCallDetail
                     modelCall={selectedCall}
                     onClose={() => setSelectedCall(null)}
+                />
+            )}
+
+            {/* Comparison Modal */}
+            {showComparison && (
+                <ModelCallComparison
+                    calls={getSelectedCallsData()}
+                    onClose={() => setShowComparison(false)}
                 />
             )}
         </div>

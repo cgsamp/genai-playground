@@ -1,23 +1,9 @@
 // frontend/app/components/summaries/GroupedSummariesTable.tsx
 'use client';
 
-import { useState, useMemo } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronDown, ChevronRight, FileText, Settings } from 'lucide-react';
-
-interface DetailedSummaryRecord {
-    id: number;
-    itemId: number;
-    itemName: string;
-    itemDetails?: string;
-    content: string;
-    modelName: string;
-    modelProvider: string;
-    modelId: number;
-    modelConfigurationId: number;
-    modelConfig: any;
-    configComment: string;
-    createdAt: string;
-}
+import { DetailedSummaryRecord, ModelConfigurationParameters } from '@/app/types/model';
 
 interface GroupedSummariesTableProps {
     summaries: DetailedSummaryRecord[];
@@ -84,8 +70,8 @@ export default function GroupedSummariesTable({ summaries, loading }: GroupedSum
     };
 
     const formatConfigInfo = (summary: DetailedSummaryRecord) => {
-        const config = summary.modelConfig;
-        const parts = [];
+        const config: ModelConfigurationParameters = summary.modelConfig;
+        const parts: string[] = [];
 
         if (config?.temperature !== undefined) {
             parts.push(`temp=${config.temperature}`);

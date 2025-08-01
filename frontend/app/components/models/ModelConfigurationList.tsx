@@ -99,13 +99,13 @@ export default function ModelConfigurationList() {
                                     <div className="text-xs text-gray-500">{config.modelProvider}</div>
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    {getParameterValue(config, 'temperature')}
+                                    {getParameterValue(config, 'temperature') ?? '-'}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    {getParameterValue(config, 'top_p')}
+                                    {getParameterValue(config, 'top_p') ?? '-'}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
-                                    {getParameterValue(config, 'max_tokens')}
+                                    {getParameterValue(config, 'max_tokens') ?? '-'}
                                 </td>
                                 <td className="px-6 py-4 whitespace-nowrap">
                                     {formatDate(config.createdAt)}
