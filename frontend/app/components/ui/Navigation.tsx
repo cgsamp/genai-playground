@@ -3,13 +3,14 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Book, MessageCircle, Cpu, Settings, BarChart2, Command, Terminal, Group, Boxes, Database, FileText, MessageSquare } from 'lucide-react';
+import { Book, MessageCircle, Cpu, Settings, BarChart2, Command, Terminal, Group, Boxes, Database, FileText, MessageSquare, TestTube } from 'lucide-react';
 
 export default function Navigation() {
     const pathname = usePathname();
 
     // Navigation configuration with icons and labels
     const navigation = [
+        { path: '/bench', label: 'Bench', icon: <TestTube size={18} /> },
         { path: '/chat', label: 'Chat', icon: <MessageCircle size={18} /> },
         { path: '/models', label: 'Models', icon: <Cpu size={18} /> },
         { path: '/configs', label: 'Configurations', icon: <Settings size={18} /> },

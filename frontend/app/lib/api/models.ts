@@ -1,6 +1,6 @@
 // app/lib/api/models.ts
 import axios from 'axios';
-import { Model, ModelConfiguration, ModelParameter, ModelCallRequest, ModelCallResponse } from '@/app/types';
+import { Model, ModelConfiguration, ModelParameter, ModelCallRequest, ModelCallResponse, DirectModelCallResponse } from '@/app/types';
 import { API_URL } from '@/app/config';
 
 export const getModels = async (): Promise<Model[]> => {
@@ -34,5 +34,14 @@ export const invokeModel = async (modelConfigId: number, prompt: string): Promis
         prompt
     };
     const response = await axios.post<ModelCallResponse>(`${API_URL}/api/batch-summary`, request);
+    return response.data;
+};
+
+export const directModelCall = async (modelConfigId: number, prompt: string): Promise<DirectModelCallResponse> => {
+    const request = {
+        modelConfigurationId: modelConfigId,
+        prompt
+    };
+    const response = await axios.post<DirectModelCallResponse>(`${API_URL}/api/model-call/direct`, request);
     return response.data;
 };

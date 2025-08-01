@@ -49,6 +49,25 @@ export interface ModelCallResponse {
     response: string;
 }
 
+export interface DirectModelCallResponse {
+    response: string;
+    modelCallId: number | null;
+    success: boolean;
+    errorMessage?: string;
+    responseMetadata?: {
+        usage?: {
+            nativeUsage?: {
+                promptTokens?: number;
+                completionTokens?: number;
+                totalTokens?: number;
+                [key: string]: any;
+            };
+            [key: string]: any;
+        };
+        [key: string]: any;
+    };
+}
+
 export interface EntitySummary {
     id: ID;
     entityId: ID;
