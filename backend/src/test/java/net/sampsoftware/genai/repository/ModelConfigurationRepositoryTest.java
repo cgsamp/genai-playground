@@ -27,7 +27,7 @@ public class ModelConfigurationRepositoryTest {
 
     @Test
     void canSaveAndLoadModelConfiguration() {
-        Model model = modelRepo.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", ""));
+        Model model = modelRepo.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "", 0.03, 0.06, 8192));
 
         ObjectNode configJson = objectMapper.createObjectNode();
         configJson.put("temperature", 0.7);

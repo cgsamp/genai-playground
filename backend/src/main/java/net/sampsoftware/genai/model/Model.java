@@ -32,4 +32,13 @@ public class Model {
 
     @Column(name = "comment", columnDefinition = "text")
     private String comment;
+
+    @Column(name = "cost_per_1k_input_tokens")
+    private Double costPer1kInputTokens;
+
+    @Column(name = "cost_per_1k_output_tokens")
+    private Double costPer1kOutputTokens;
+
+    @Column(name = "context_length")
+    private Integer contextLength;
 }

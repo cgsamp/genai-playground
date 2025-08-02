@@ -38,6 +38,9 @@ export interface ModelConfiguration {
     modelConfig: ModelConfigurationParameters;
     comment: string;
     createdAt: string;
+    costPer1kInputTokens?: number;
+    costPer1kOutputTokens?: number;
+    contextLength?: number;
 }
 
 export interface ModelCallRequest {

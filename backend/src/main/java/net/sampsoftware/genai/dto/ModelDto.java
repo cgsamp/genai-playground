@@ -9,4 +9,7 @@ public class ModelDto {
     private String modelProvider;
     private String modelApiUrl;
     private String comment;
+    private Double costPer1kInputTokens;
+    private Double costPer1kOutputTokens;
+    private Integer contextLength;
 }

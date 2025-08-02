@@ -32,7 +32,7 @@ public class ModelConfigurationControllerTest  {
     @Test
     void createAndFetchModelConfiguration() throws Exception {
         // Create and save the Model entity first
-        Model model = modelRepository.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model"));
+        Model model = modelRepository.save(new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model", 0.03, 0.06, 8192));
 
         // Create config JSON
         ObjectNode config = objectMapper.createObjectNode();

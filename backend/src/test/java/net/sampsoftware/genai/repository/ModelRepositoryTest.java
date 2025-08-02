@@ -15,7 +15,7 @@ public class ModelRepositoryTest  {
 
     @Test
     void canSaveAndFindModel() {
-        Model model = new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model");
+        Model model = new Model(null, "gpt-4", "openai", "https://api.openai.com/v1", "test model", 0.03, 0.06, 8192);
         Model saved = modelRepository.save(model);
 
         assertThat(saved.getId()).isNotNull();

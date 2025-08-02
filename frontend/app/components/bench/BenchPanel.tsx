@@ -1,8 +1,8 @@
 // components/bench/BenchPanel.tsx
 'use client';
 
-import { useState, useEffect } from 'react';
-import { Play, RotateCcw } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Play, RotateCcw, GripHorizontal } from 'lucide-react';
 import { api } from '@/app/lib/api';
 import { ModelConfiguration, Prompt, PromptType } from '@/app/types';
 import { ModelCallRecord } from '@/app/lib/api/modelCalls';
@@ -34,9 +34,58 @@ export default function BenchPanel() {
     // Loading states
     const [loadingData, setLoadingData] = useState(true);
 
+    // Resize states
+    const [selectorHeight, setSelectorHeight] = useState(200);
+    const [inputHeight, setInputHeight] = useState(120);
+    const [adjustmentHeight, setAdjustmentHeight] = useState(300);
+    const [isDragging, setIsDragging] = useState<'selectors' | 'input' | 'adjustment' | null>(null);
+    const containerRef = useRef<HTMLDivElement>(null);
+
     useEffect(() => {
         loadInitialData();
     }, []);
+
+    // Resize handlers
+    const handleMouseDown = (section: 'selectors' | 'input' | 'adjustment') => (e: React.MouseEvent) => {
+        e.preventDefault();
+        setIsDragging(section);
+    };
+
+    useEffect(() => {
+        const handleMouseMove = (e: MouseEvent) => {
+            if (!isDragging || !containerRef.current) return;
+
+            const containerRect = containerRef.current.getBoundingClientRect();
+            const relativeY = e.clientY - containerRect.top;
+            const headerHeight = 60; // Header height
+            
+            if (isDragging === 'selectors') {
+                const newHeight = Math.max(120, Math.min(500, relativeY - headerHeight));
+                setSelectorHeight(newHeight);
+            } else if (isDragging === 'input') {
+                const newHeight = Math.max(60, Math.min(250, relativeY - headerHeight - selectorHeight - 8));
+                setInputHeight(newHeight);
+            } else if (isDragging === 'adjustment') {
+                const availableHeight = containerRect.height - headerHeight - selectorHeight - inputHeight - 24; // 24px for resize handles
+                const newHeight = Math.max(100, Math.min(availableHeight - 100, relativeY - headerHeight - selectorHeight - inputHeight - 16));
+                setAdjustmentHeight(newHeight);
+            }
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(null);
+        };
+
+        if (isDragging) {
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+        }
+
+        return () => {
+            document.removeEventListener('mousemove', handleMouseMove);
+            document.removeEventListener('mouseup', handleMouseUp);
+        };
+    }, [isDragging, selectorHeight, inputHeight, adjustmentHeight]);
 
     const generateMockResponse = (prompt: string, configId: number) => {
         // Generate a realistic mock response based on the prompt
@@ -284,31 +333,19 @@ export default function BenchPanel() {
     }
 
     return (
-        <div className="h-screen bg-gray-50 p-2 text-xs font-mono overflow-hidden">
-            <div className="bg-white rounded shadow-sm h-full flex flex-col">
+        <div className="h-screen bg-gray-50 p-1 text-[10px] font-mono overflow-hidden leading-tight">
+            <div className="bg-white rounded shadow-sm h-full flex flex-col" ref={containerRef}>
                 {/* Header */}
-                <div className="p-3 border-b bg-gray-900 text-white rounded-t">
+                <div className="p-2 border-b bg-gray-900 text-white rounded-t flex-shrink-0">
                     <div className="flex items-center justify-between">
-                        <h1 className="text-sm font-bold">AI Model Bench</h1>
-                        <div className="flex gap-2">
+                        <h1 className="text-[11px] font-bold">AI Model Bench</h1>
+                        <div className="flex gap-1">
                             <button
                                 onClick={resetForm}
-                                className="px-3 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs flex items-center gap-1"
+                                className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-[10px] flex items-center gap-1"
                             >
-                                <RotateCcw size={12} />
+                                <RotateCcw size={10} />
                                 Reset
-                            </button>
-                            <button
-                                onClick={callModel}
-                                disabled={isLoading || !selectedConfigId}
-                                className={`px-4 py-1 rounded text-xs flex items-center gap-1 ${
-                                    isLoading || !selectedConfigId
-                                        ? 'bg-gray-500 cursor-not-allowed'
-                                        : 'bg-blue-600 hover:bg-blue-700'
-                                }`}
-                            >
-                                <Play size={12} />
-                                {isLoading ? 'Calling...' : 'Call Model'}
                             </button>
                         </div>
                     </div>
@@ -316,13 +353,17 @@ export default function BenchPanel() {
 
                 {/* Main Content */}
                 <div className="flex-1 flex flex-col overflow-hidden">
-                    {/* Top Section - Selectors */}
-                    <div className="p-3 border-b bg-gray-50">
-                        <div className="grid grid-cols-3 gap-4">
+                    {/* Top Section - Selectors (Resizable) */}
+                    <div 
+                        className="p-2 border-b bg-gray-50 flex-shrink-0 overflow-auto"
+                        style={{ height: `${selectorHeight}px` }}
+                    >
+                        <div className="grid grid-cols-3 gap-2 h-full">
                             <ModelSelector
                                 modelConfigs={modelConfigs}
                                 selectedConfigId={selectedConfigId}
                                 onSelect={setSelectedConfigId}
+                                availableHeight={selectorHeight - 16}
                             />
                             <PromptSelector
                                 title="System Prompt"
@@ -330,6 +371,7 @@ export default function BenchPanel() {
                                 selectedPrompt={selectedSystemPrompt}
                                 onSelect={setSelectedSystemPrompt}
                                 placeholder="Select system prompt (optional)"
+                                availableHeight={selectorHeight - 16}
                             />
                             <PromptSelector
                                 title="User Prompt"
@@ -337,34 +379,253 @@ export default function BenchPanel() {
                                 selectedPrompt={selectedUserPrompt}
                                 onSelect={setSelectedUserPrompt}
                                 placeholder="Select user prompt template (optional)"
+                                availableHeight={selectorHeight - 16}
                             />
                         </div>
                     </div>
 
-                    {/* Middle Section - User Content Input */}
-                    <div className="p-3 border-b">
+                    {/* Resize Handle for Selectors */}
+                    <div 
+                        className={`flex items-center justify-center bg-gray-200 border-b cursor-row-resize hover:bg-gray-300 transition-colors ${
+                            isDragging === 'selectors' ? 'bg-blue-300' : ''
+                        }`}
+                        style={{ height: '8px' }}
+                        onMouseDown={handleMouseDown('selectors')}
+                    >
+                        <GripHorizontal size={12} className="text-gray-500" />
+                    </div>
+
+                    {/* Middle Section - User Content Input (Resizable) */}
+                    <div 
+                        className="p-2 border-b flex-shrink-0"
+                        style={{ height: `${inputHeight}px` }}
+                    >
                         <UserContentInput
                             value={userContent}
                             onChange={setUserContent}
                             placeholder="Enter your content here... (will be combined with selected prompts)"
                             disabled={isLoading}
+                            availableHeight={inputHeight - 32}
                         />
+                        <div className="mt-2 flex justify-end">
+                            <button
+                                onClick={callModel}
+                                disabled={isLoading || !selectedConfigId}
+                                className={`px-3 py-1 rounded text-[10px] flex items-center gap-1 ${
+                                    isLoading || !selectedConfigId
+                                        ? 'bg-gray-400 cursor-not-allowed text-gray-600'
+                                        : 'bg-blue-600 hover:bg-blue-700 text-white'
+                                }`}
+                            >
+                                <Play size={10} />
+                                {isLoading ? 'Calling...' : 'Call Model'}
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Resize Handle for Input */}
+                    <div 
+                        className={`flex items-center justify-center bg-gray-200 border-b cursor-row-resize hover:bg-gray-300 transition-colors ${
+                            isDragging === 'input' ? 'bg-blue-300' : ''
+                        }`}
+                        style={{ height: '8px' }}
+                        onMouseDown={handleMouseDown('input')}
+                    >
+                        <GripHorizontal size={12} className="text-gray-500" />
+                    </div>
+
+                    {/* Adjustment Section (Highly Expandable) */}
+                    <div 
+                        className="p-2 border-b bg-gray-50 flex-shrink-0 overflow-auto"
+                        style={{ height: `${adjustmentHeight}px` }}
+                    >
+                        <div className="h-full">
+                            <div className="text-[10px] font-medium text-gray-700 mb-2 flex items-center gap-1">
+                                <GripHorizontal size={10} className="rotate-90" />
+                                Model Adjustments & Parameters
+                            </div>
+                            <div className="grid grid-cols-2 gap-2 h-full">
+                                {/* Left Column - Parameter Adjustments */}
+                                <div className="space-y-2 overflow-auto">
+                                    <div className="text-[9px] font-medium text-gray-600 mb-1">Configuration Parameters</div>
+                                    
+                                    {/* Temperature */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Temperature: 0.7</label>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="2" 
+                                            step="0.1" 
+                                            defaultValue="0.7"
+                                            className="w-full h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-[7px] text-gray-400">
+                                            <span>Conservative</span>
+                                            <span>Creative</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Max Tokens */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Max Tokens: 1024</label>
+                                        <input 
+                                            type="range" 
+                                            min="50" 
+                                            max="4000" 
+                                            step="50" 
+                                            defaultValue="1024"
+                                            className="w-full h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-[7px] text-gray-400">
+                                            <span>50</span>
+                                            <span>4000</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Top P */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Top P: 0.95</label>
+                                        <input 
+                                            type="range" 
+                                            min="0.1" 
+                                            max="1" 
+                                            step="0.05" 
+                                            defaultValue="0.95"
+                                            className="w-full h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-[7px] text-gray-400">
+                                            <span>Focused</span>
+                                            <span>Diverse</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Frequency Penalty */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Frequency Penalty: 0.0</label>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="2" 
+                                            step="0.1" 
+                                            defaultValue="0"
+                                            className="w-full h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-[7px] text-gray-400">
+                                            <span>Repetitive</span>
+                                            <span>Varied</span>
+                                        </div>
+                                    </div>
+
+                                    {/* Presence Penalty */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Presence Penalty: 0.0</label>
+                                        <input 
+                                            type="range" 
+                                            min="0" 
+                                            max="2" 
+                                            step="0.1" 
+                                            defaultValue="0"
+                                            className="w-full h-1 bg-gray-300 rounded-lg appearance-none cursor-pointer"
+                                        />
+                                        <div className="flex justify-between text-[7px] text-gray-400">
+                                            <span>Stay on topic</span>
+                                            <span>Explore topics</span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Right Column - Quick Presets & Advanced */}
+                                <div className="space-y-2 overflow-auto">
+                                    <div className="text-[9px] font-medium text-gray-600 mb-1">Quick Presets</div>
+                                    <div className="grid grid-cols-2 gap-1">
+                                        <button className="px-2 py-1 bg-blue-100 hover:bg-blue-200 rounded text-[8px] text-blue-800">
+                                            Creative
+                                        </button>
+                                        <button className="px-2 py-1 bg-green-100 hover:bg-green-200 rounded text-[8px] text-green-800">
+                                            Balanced
+                                        </button>
+                                        <button className="px-2 py-1 bg-purple-100 hover:bg-purple-200 rounded text-[8px] text-purple-800">
+                                            Precise
+                                        </button>
+                                        <button className="px-2 py-1 bg-yellow-100 hover:bg-yellow-200 rounded text-[8px] text-yellow-800">
+                                            Factual
+                                        </button>
+                                    </div>
+
+                                    <div className="text-[9px] font-medium text-gray-600 mt-3 mb-1">Advanced Options</div>
+                                    
+                                    {/* Stop Sequences */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Stop Sequences</label>
+                                        <input 
+                                            type="text" 
+                                            placeholder="\\n\\n, \\n---\\n"
+                                            className="w-full px-1 py-1 text-[8px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+
+                                    {/* Model Selection Override */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Model Override</label>
+                                        <select className="w-full px-1 py-1 text-[8px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                                            <option value="">Use Config Default</option>
+                                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                                            <option value="gpt-4">GPT-4</option>
+                                            <option value="gpt-4o">GPT-4o</option>
+                                            <option value="gpt-4o-mini">GPT-4o Mini</option>
+                                        </select>
+                                    </div>
+
+                                    {/* Seed */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Seed (Reproducibility)</label>
+                                        <input 
+                                            type="number" 
+                                            placeholder="12345"
+                                            className="w-full px-1 py-1 text-[8px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500"
+                                        />
+                                    </div>
+
+                                    {/* Response Format */}
+                                    <div className="space-y-1">
+                                        <label className="block text-[8px] text-gray-600">Response Format</label>
+                                        <select className="w-full px-1 py-1 text-[8px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500">
+                                            <option value="text">Text</option>
+                                            <option value="json_object">JSON Object</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Resize Handle for Adjustments */}
+                    <div 
+                        className={`flex items-center justify-center bg-gray-200 border-b cursor-row-resize hover:bg-gray-300 transition-colors ${
+                            isDragging === 'adjustment' ? 'bg-blue-300' : ''
+                        }`}
+                        style={{ height: '8px' }}
+                        onMouseDown={handleMouseDown('adjustment')}
+                    >
+                        <GripHorizontal size={12} className="text-gray-500" />
                     </div>
 
                     {/* Error Display */}
                     {error && (
-                        <div className="p-3 bg-red-50 border border-red-200 text-red-800 text-xs">
+                        <div className="p-2 bg-red-50 border border-red-200 text-red-800 text-[10px] flex-shrink-0">
                             <strong>Error:</strong> {error}
                         </div>
                     )}
 
-                    {/* Bottom Section - Response */}
+                    {/* Bottom Section - Response (Takes remaining space) */}
                     <div className="flex-1 overflow-hidden">
                         <ResponseDisplay
                             response={modelResponse}
                             callDetails={callDetails}
                             responseMetadata={responseMetadata}
                             isLoading={isLoading}
+                            selectedConfig={modelConfigs.find(config => config.id === selectedConfigId) || null}
                         />
                     </div>
                 </div>

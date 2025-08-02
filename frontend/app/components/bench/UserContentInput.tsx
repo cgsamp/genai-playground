@@ -8,21 +8,25 @@ interface UserContentInputProps {
     onChange: (value: string) => void;
     placeholder: string;
     disabled?: boolean;
+    availableHeight?: number;
 }
 
 export default function UserContentInput({ 
     value, 
     onChange, 
     placeholder, 
-    disabled = false 
+    disabled = false,
+    availableHeight = 120
 }: UserContentInputProps) {
+    const textAreaHeight = Math.max(60, availableHeight - 40); // 40px for label and footer
+    
     return (
-        <div>
-            <label className="block text-xs font-medium text-gray-700 mb-1 flex items-center gap-1">
-                <Edit3 size={12} />
+        <div className="h-full flex flex-col">
+            <label className="block text-[10px] font-medium text-gray-700 mb-1 flex items-center gap-1 leading-tight">
+                <Edit3 size={10} />
                 User Content
                 <span className="text-gray-500 ml-auto">
-                    {value.length} characters
+                    {value.length} chars
                 </span>
             </label>
             <textarea
@@ -30,11 +34,11 @@ export default function UserContentInput({
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
                 disabled={disabled}
-                rows={4}
-                className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none font-mono disabled:bg-gray-100 disabled:cursor-not-allowed"
+                className="w-full px-1 py-1 text-[10px] border border-gray-300 rounded focus:ring-1 focus:ring-blue-500 focus:border-blue-500 resize-none font-mono disabled:bg-gray-100 disabled:cursor-not-allowed leading-tight flex-1"
+                style={{ height: `${textAreaHeight}px` }}
             />
-            <div className="flex justify-between items-center mt-1 text-xs text-gray-500">
-                <span>Will be combined with selected prompts above</span>
+            <div className="flex justify-between items-center mt-1 text-[9px] text-gray-500">
+                <span>Combined with prompts above</span>
                 {value.includes('{') && value.includes('}') && (
                     <span className="text-orange-600">Placeholders detected</span>
                 )}

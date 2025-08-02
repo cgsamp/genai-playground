@@ -10,5 +10,8 @@ public record ModelConfigurationDto(
         String modelProvider,
         JsonNode modelConfig,
         String comment,
-        Instant createdAt
+        Instant createdAt,
+        Double costPer1kInputTokens,
+        Double costPer1kOutputTokens,
+        Integer contextLength
 ) {}
